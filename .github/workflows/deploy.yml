@@ -1,0 +1,28 @@
+name: Deploy to VDS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: ${{ secrets.VDS_USER }}
+          key: ${{ secrets.VDS_SSH_KEY }}
+          script: |
+            set -e
+            cd /root/tg_ai_helper
+            echo "=== Pulling latest code ==="
+            git pull origin main
+            echo "=== Rebuilding and restarting containers ==="
+            docker compose --profile cloud up -d --build
+            echo "=== Status ==="
+            docker compose --profile cloud ps
+            echo "=== Last logs ==="
+            docker compose --profile cloud logs --tail=50 bot
