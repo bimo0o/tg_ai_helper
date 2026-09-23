@@ -1,0 +1,163 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/tg_ai_helper/scripts/cli.py", line 4, in <module>
+    from app.config import ConfigError
+  File "/root/tg_ai_helper/app/config.py", line 9, in <module>
+    from aiogram.utils.token import TokenValidationError, validate_token
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/aiogram/__init__.py", line 3, in <module>
+    from . import enums, methods, types
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/aiogram/methods/__init__.py", line 1, in <module>
+    from .add_sticker_to_set import AddStickerToSet
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/aiogram/methods/add_sticker_to_set.py", line 5, in <module>
+    from ..types import InputSticker
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/aiogram/types/__init__.py", line 913, in <module>
+    _entity.model_rebuild(_types_namespace=_types_namespace)
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/main.py", line 683, in model_rebuild
+    return _model_construction.complete_model_class(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py", line 667, in complete_model_class
+    schema = gen_schema.generate_schema(cls)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 744, in generate_schema
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1038, in _generate_schema_inner
+    return self._model_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 868, in _model_schema
+    {k: self._generate_md_field_schema(k, v, decorators) for k, v in fields.items()},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1245, in _generate_md_field_schema
+    schema, metadata = self._common_field_schema(name, field_info, decorators)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1299, in _common_field_schema
+    schema = self._apply_annotations(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 2252, in _apply_annotations
+    schema = get_inner_schema(source_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_schema_generation_shared.py", line 83, in __call__
+    schema = self._handler(source_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 2231, in inner_handler
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1043, in _generate_schema_inner
+    return self.match_type(obj)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1161, in match_type
+    return self._match_generic_type(obj, origin)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1184, in _match_generic_type
+    return self._union_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1344, in _union_schema
+    choices.append(self.generate_schema(arg))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 744, in generate_schema
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1043, in _generate_schema_inner
+    return self.match_type(obj)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1119, in match_type
+    return self._type_alias_type_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1376, in _type_alias_type_schema
+    schema = self.generate_schema(annotation)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 744, in generate_schema
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1043, in _generate_schema_inner
+    return self.match_type(obj)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1161, in match_type
+    return self._match_generic_type(obj, origin)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1184, in _match_generic_type
+    return self._union_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1344, in _union_schema
+    choices.append(self.generate_schema(arg))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 744, in generate_schema
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1038, in _generate_schema_inner
+    return self._model_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 868, in _model_schema
+    {k: self._generate_md_field_schema(k, v, decorators) for k, v in fields.items()},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1245, in _generate_md_field_schema
+    schema, metadata = self._common_field_schema(name, field_info, decorators)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1299, in _common_field_schema
+    schema = self._apply_annotations(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 2252, in _apply_annotations
+    schema = get_inner_schema(source_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_schema_generation_shared.py", line 83, in __call__
+    schema = self._handler(source_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 2231, in inner_handler
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1038, in _generate_schema_inner
+    return self._model_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 868, in _model_schema
+    {k: self._generate_md_field_schema(k, v, decorators) for k, v in fields.items()},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1245, in _generate_md_field_schema
+    schema, metadata = self._common_field_schema(name, field_info, decorators)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1299, in _common_field_schema
+    schema = self._apply_annotations(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 2252, in _apply_annotations
+    schema = get_inner_schema(source_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_schema_generation_shared.py", line 83, in __call__
+    schema = self._handler(source_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 2231, in inner_handler
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1043, in _generate_schema_inner
+    return self.match_type(obj)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1161, in match_type
+    return self._match_generic_type(obj, origin)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1184, in _match_generic_type
+    return self._union_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1344, in _union_schema
+    choices.append(self.generate_schema(arg))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 744, in generate_schema
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1038, in _generate_schema_inner
+    return self._model_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 868, in _model_schema
+    {k: self._generate_md_field_schema(k, v, decorators) for k, v in fields.items()},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1245, in _generate_md_field_schema
+    schema, metadata = self._common_field_schema(name, field_info, decorators)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/tg_ai_helper/.venv/lib/python3.12/site-packages/pydantic/_internal/_generate_schema.py", line 1293, in _common_field_schema
+    with self.field_name_stack.push(name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/contextlib.py", line 301, in helper
+    return _GeneratorContextManager(func, args, kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/contextlib.py", line 108, in __init__
+    doc = getattr(func, "__doc__", None)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
