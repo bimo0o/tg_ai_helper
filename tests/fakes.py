@@ -1,7 +1,8 @@
 """Small PostgreSQL protocol fake; production repository SQL is still exercised."""
 
+import json
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 
 class MemoryPool:
@@ -12,6 +13,7 @@ class MemoryPool:
         self.admin_id = None
         self.model = None
         self.events = {}
+        self.profiles = {}
 
     @asynccontextmanager
     async def acquire(self):
@@ -23,6 +25,19 @@ class MemoryPool:
 
     async def execute(self, query, *args):
         self.calls.append((query, args))
+        if query.startswith("INSERT INTO music_profiles"):
+            profile = self.profiles.get(args[0])
+            if profile is None or profile["last_used_at"] < datetime.now(UTC) - timedelta(
+                days=args[3]
+            ):
+                profile = {"data": {}, "last_used_at": datetime.now(UTC)}
+                self.profiles[args[0]] = profile
+            profile["data"][args[1]] = args[2]
+            profile["last_used_at"] = datetime.now(UTC)
+            return
+        if query.startswith("DELETE FROM music_profiles WHERE user_id"):
+            self.profiles.pop(args[0], None)
+            return
         if query.startswith("INSERT INTO administrators"):
             if self.admin_id is None:
                 self.admin_id = args[0]
@@ -158,6 +173,12 @@ class MemoryPool:
 
     async def fetchval(self, query, *args):
         self.calls.append((query, args))
+        if query.startswith("UPDATE music_profiles"):
+            profile = self.profiles.get(args[0])
+            if not profile or profile["last_used_at"] < datetime.now(UTC) - timedelta(days=args[1]):
+                return None
+            profile["last_used_at"] = datetime.now(UTC)
+            return json.dumps(profile["data"])
         if "FROM administrators" in query:
             return self.admin_id == args[0]
         if "FROM application_settings" in query:
