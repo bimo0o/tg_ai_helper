@@ -18,27 +18,33 @@ async def test_startup_wires_commands_before_text_and_closes_single_pool_and_ses
     )
     runner = Mock(cleanup=AsyncMock())
     migration = AsyncMock()
+    maintenance = AsyncMock()
     create_pool = AsyncMock(return_value=pool)
     monkeypatch.setattr(application, "create_pool", create_pool)
     monkeypatch.setattr(application, "create_bot", Mock(return_value=bot))
     monkeypatch.setattr(application, "ClientSession", Mock(return_value=llm_session))
     monkeypatch.setattr(application, "Dispatcher", Mock(return_value=dispatcher))
     monkeypatch.setattr(application, "migrate", migration)
+    monkeypatch.setattr(application, "maintenance", maintenance)
     monkeypatch.setattr(application, "start_health_server", AsyncMock(return_value=runner))
     settings = Settings(bot_token="unused", postgres_password="unused")
     await application.run(settings)
     assert [call.args[0].name for call in dispatcher.include_router.call_args_list] == [
         "admin",
+        "music",
         "commands",
         "messages",
     ]
     create_pool.assert_awaited_once()
     migration.assert_awaited_once_with(pool)
+    maintenance.assert_awaited_once_with(pool, settings)
     assert dispatcher.start_polling.call_args.kwargs["repository"].pool is pool
     dependencies = dispatcher.start_polling.call_args.kwargs
     assert dependencies["operations"].pool is pool
     assert dependencies["assistant"].operations is dependencies["operations"]
     assert dependencies["admin"].billing.session is llm_session
+    assert dependencies["assistant"].profiles is dependencies["profiles"]
+    assert dependencies["profiles"].retention_days == 180
     pool.close.assert_awaited_once()
     llm_session.close.assert_awaited_once()
     bot.session.close.assert_awaited_once()

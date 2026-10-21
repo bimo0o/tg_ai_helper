@@ -13,11 +13,14 @@ from app.db import create_pool
 from app.handlers.admin import create_router as admin_router
 from app.handlers.commands import create_router as commands_router
 from app.handlers.messages import create_router as messages_router
+from app.handlers.music import create_router as music_router
 from app.health import HealthState, start_health_server
 from app.llm import LLMClient
 from app.logging_setup import configure_logging
+from app.music_profile import MusicProfiles
 from app.operations import OperationsRepository
 from app.repository import Repository
+from app.retention import maintenance
 from app.schema import migrate
 from app.telegram import create_bot
 
@@ -29,6 +32,7 @@ async def run(settings: Settings) -> None:
     bot = create_bot(settings)
     runner = None
     llm_session = None
+    maintenance_task = None
     try:
         state.pool = await create_pool(settings)
         logger.info("PostgreSQL подключён: SELECT 1 выполнен.")
@@ -43,9 +47,11 @@ async def run(settings: Settings) -> None:
             )
         logger.info("Telegram доступен. Бот @%s запускает polling.", me.username)
         await migrate(state.pool)
+        maintenance_task = asyncio.create_task(maintenance(state.pool, settings))
         llm_session = ClientSession()
-        repository = Repository(state.pool)
+        repository = Repository(state.pool, retention_days=settings.history_retention_days)
         operations = OperationsRepository(state.pool)
+        profiles = MusicProfiles(state.pool, settings.music_profile_retention_days)
         assistant = Assistant(
             repository,
             LLMClient(
@@ -56,6 +62,7 @@ async def run(settings: Settings) -> None:
             ),
             settings,
             operations,
+            profiles,
         )
         admin = AdminService(
             operations,
@@ -66,9 +73,11 @@ async def run(settings: Settings) -> None:
                 settings.openrouter_management_key,
             ),
             settings.llm_model,
+            settings=settings,
         )
         dispatcher = Dispatcher()
         dispatcher.include_router(admin_router())
+        dispatcher.include_router(music_router())
         dispatcher.include_router(commands_router())
         dispatcher.include_router(messages_router())
         runner = await start_health_server(state, settings.health_port)
@@ -81,6 +90,7 @@ async def run(settings: Settings) -> None:
                 settings=settings,
                 operations=operations,
                 admin=admin,
+                profiles=profiles,
                 allowed_updates=dispatcher.resolve_used_update_types(),
                 close_bot_session=False,
             )
@@ -92,6 +102,9 @@ async def run(settings: Settings) -> None:
         if state.polling_task and not state.polling_task.done():
             state.polling_task.cancel()
             await asyncio.gather(state.polling_task, return_exceptions=True)
+        if maintenance_task:
+            maintenance_task.cancel()
+            await asyncio.gather(maintenance_task, return_exceptions=True)
         if runner:
             await runner.cleanup()
         if llm_session:
