@@ -77,6 +77,9 @@ class Assistant:
             async with self.repository.locked(owner) as repository:
                 user = await repository.get_settings(owner)
                 mode = user.mode
+                if use_web and mode != "music":
+                    reply = Reply("Для поиска сначала включите /music.", error_kind="input")
+                    return reply
                 context = profile_messages(profile) if mode == "music" else []
                 profile_chars = sum(len(message["content"]) for message in context)
                 if profile_chars + len(text) > self.settings.history_max_chars:
