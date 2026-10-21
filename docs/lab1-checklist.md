@@ -65,7 +65,7 @@
 Фактически выполнено в Python 3.12.10:
 
 ```text
-python -m pytest -q --tb=short       206 passed, 4 skipped
+python -m pytest -q --tb=short       207 passed, 4 skipped
 python -m ruff check .              All checks passed!
 python -m ruff format --check .     74 files already formatted
 python -m pip check                No broken requirements found.

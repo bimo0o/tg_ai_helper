@@ -224,7 +224,7 @@ Chat Completions; другие параметры случайности не м
 ресурсов и версия миграции. Экспорт эксперимента проверен на вымышленных данных;
 основная функция эксперимента не запускалась.
 
-**Подтверждённый полный прогон 21 октября 2026:** `206 passed, 4 skipped`.
+**Подтверждённый полный прогон 21 октября 2026:** `207 passed, 4 skipped`.
 `ruff check .` → `All checks passed!`; `ruff format --check .` →
 `74 files already formatted`; `pip check` → `No broken requirements found`.
 Четыре пропуска: проверка Compose без Docker CLI и три интеграционных теста БД
