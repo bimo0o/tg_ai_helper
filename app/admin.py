@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from app.billing import BillingClient
+from app.config import Settings
 from app.operations import OperationsRepository
 
 DENIED = "Доступ запрещён."
@@ -22,11 +23,16 @@ def money(value) -> str:
 
 class AdminService:
     def __init__(
-        self, operations: OperationsRepository, billing: BillingClient, default_model: str
+        self,
+        operations: OperationsRepository,
+        billing: BillingClient,
+        default_model: str,
+        settings: Settings | None = None,
     ):
         self.operations = operations
         self.billing = billing
         self.default_model = default_model
+        self.settings = settings or Settings(bot_token="", postgres_password="")
 
     async def authorized(self, user_id: int) -> bool:
         return await self.operations.is_admin(user_id)
@@ -40,10 +46,13 @@ class AdminService:
         if period not in PERIODS or not 0 <= offset <= 1000000 or offset % 10:
             raise ValueError("Invalid dashboard page.")
         label, days = PERIODS[period]
-        since = (
-            datetime.now(UTC) - timedelta(days=days) if days else datetime(1970, 1, 1, tzinfo=UTC)
-        )
+        now = datetime.now(UTC)
+        since = now - timedelta(days=days) if days else datetime(1970, 1, 1, tzinfo=UTC)
+        since = max(since, now - timedelta(days=self.settings.statistics_retention_days))
         summary = await self.operations.summary(since)
+        today = await self.operations.summary(
+            now.replace(hour=0, minute=0, second=0, microsecond=0)
+        )
         users = await self.operations.user_stats(since, offset)
         model = await self.operations.get_model(self.default_model)
         budget = await self.billing.get_budget()
@@ -83,6 +92,19 @@ class AdminService:
         lines.append(f"Баланс аккаунта: {money(budget.account_balance)}")
         if budget.account_balance is None:
             lines.append("Для общего баланса нужен management key и доступность API.")
+        reserved = today["reserved_usd"] or 0
+        lines.extend(
+            [
+                "\nКонтроль расходов · сутки UTC:",
+                f"Занято с резервами: {money(reserved)} / {money(self.settings.daily_budget_usd)}",
+                "Свободно для допуска: " + money(max(0, self.settings.daily_budget_usd - reserved)),
+                f"На пользователя: {money(self.settings.user_daily_budget_usd)} в сутки; "
+                f"резерв запроса: {money(self.settings.request_reserve_usd)}",
+                f"Квоты: {self.settings.user_requests_per_minute}/мин, "
+                f"{self.settings.user_requests_per_day}/сутки; ответ до "
+                f"{self.settings.max_output_tokens} токенов.",
+            ]
+        )
         lines.append(f"\nПользователи · страница {offset // 10 + 1}:")
         if not users:
             lines.append("Нет запросов за выбранный период.")
@@ -91,5 +113,8 @@ class AdminService:
                 f"ID {row['user_id']}: {row['requests']} запросов, {row['errors']} ошибок, "
                 f"{money(row['cost_usd'])} (стоимость известна для {row['priced']})."
             )
-        lines.append("\nУчёт ведётся с установки админки. Тексты диалогов здесь не показываются.")
+        lines.append(
+            f"\nСтатистика хранится {self.settings.statistics_retention_days} дней с момента "
+            "каждого события. Учёт ведётся с установки админки. Тексты диалогов не показываются."
+        )
         return AdminView("\n".join(lines), period, offset, len(users) > 10)
