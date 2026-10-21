@@ -1,4 +1,5 @@
 from dataclasses import replace
+from decimal import Decimal
 
 import pytest
 
@@ -51,3 +52,28 @@ def test_bad_url_never_leaks_value(url):
 def test_context_limits_are_validated(name, value):
     with pytest.raises(ConfigError, match=name.upper()):
         replace(configured(), **{name: value}).validate_llm()
+
+
+def test_cost_and_retention_defaults():
+    settings = configured()
+    assert settings.daily_budget_usd == Decimal("2")
+    assert settings.user_daily_budget_usd == Decimal("0.20")
+    assert (
+        settings.history_retention_days,
+        settings.statistics_retention_days,
+        settings.music_profile_retention_days,
+    ) == (30, 90, 180)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"daily_budget_usd": Decimal("NaN")},
+        {"request_reserve_usd": Decimal("1")},
+        {"history_retention_days": 0},
+        {"max_output_tokens": 0},
+    ],
+)
+def test_invalid_cost_and_retention_policy_is_rejected(changes):
+    with pytest.raises(ConfigError):
+        replace(configured(), **changes).validate_llm()
