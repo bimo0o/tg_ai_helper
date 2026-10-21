@@ -91,11 +91,20 @@ async def test_typing_is_sent_while_generation_is_pending(monkeypatch):
     from app.llm import LLMClient
 
     original = LLMClient.generate
+    original_action = Bot.send_chat_action
+    typing_sent = asyncio.Event()
+
+    async def observe_action(self, *args, **kwargs):
+        result = await original_action(self, *args, **kwargs)
+        typing_sent.set()
+        return result
 
     async def delayed(self, *args, **kwargs):
-        await asyncio.sleep(0.02)
+        async with asyncio.timeout(2):
+            await typing_sent.wait()
         return await original(self, *args, **kwargs)
 
+    monkeypatch.setattr(Bot, "send_chat_action", observe_action)
     monkeypatch.setattr(LLMClient, "generate", delayed)
     methods, _, _, _ = await dispatch("вопрос")
     assert any(
@@ -119,3 +128,13 @@ async def test_current_input_exactly_at_character_limit_is_preserved():
         "role": "user",
         "content": text,
     }
+
+
+async def test_fenced_python_is_delivered_with_real_newlines_indentation_and_literal_url():
+    code = 'url = "https://example.com"\nfor _ in range(3):\n    print(2**3, "__name__", url)\n'
+    methods, _, _, _ = await dispatch("show code", data=response("```python\n" + code + "```"))
+    sent = [method for method in methods if isinstance(method, SendMessage)]
+    visible = "".join(CheckedHTML(method.text).text for method in sent)
+    assert visible == code
+    assert "<pre>" in sent[0].text
+    compile(visible, "example", "exec")
