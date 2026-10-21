@@ -64,10 +64,24 @@ async def show_settings(
     await message.answer(text, parse_mode=None)
 
 
+async def reset(message: Message, repository: Repository) -> None:
+    if message.from_user is None:
+        return
+    owner = (message.chat.id, message.from_user.id)
+    try:
+        async with repository.locked(owner) as locked:
+            await locked.clear_history(owner)
+        text = "История очищена. Режим и temperature сохранены."
+    except Exception:
+        text = ERROR_MESSAGE
+    await message.answer(text, parse_mode=None)
+
+
 def create_router() -> Router:
     router = Router(name="commands")
     router.message.filter(F.chat.type == "private", F.text)
     router.message.register(start, CommandStart())
     router.message.register(change_mode, Command("study", "translate", "music"))
     router.message.register(show_settings, Command("settings"))
+    router.message.register(reset, Command("reset"))
     return router

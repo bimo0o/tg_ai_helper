@@ -73,3 +73,17 @@ async def test_settings_rejects_invalid_values_before_database(value):
     assert bot.session.call_args.args[1].text == (
         "Допустимые значения temperature: 0.0, 0.3, 0.7, 1.0. Пример: /settings 0.3"
     )
+
+
+async def test_reset_preserves_settings_and_other_users():
+    pool = MemoryPool()
+    repo = Repository(pool)
+    await repo.set_mode((1, 1), "music")
+    await repo.set_temperature((1, 1), 1.0)
+    for owner in [(1, 1), (2, 2)]:
+        await repo.get_settings(owner)
+        await repo.add_message(owner, "user", "history", "music")
+    bot, repo = await dispatch("/reset", pool)
+    assert await repo.get_settings((1, 1)) == UserSettings("music", 1.0)
+    assert [row["owner"] for row in pool.messages] == [(2, 2)]
+    assert bot.session.call_args.args[1].text == ("История очищена. Режим и temperature сохранены.")
