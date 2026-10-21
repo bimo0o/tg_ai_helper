@@ -7,6 +7,7 @@ from aiogram.types import Chat, Message, Update, User
 
 from app.config import Settings
 from app.handlers.commands import START_MESSAGE, create_router
+from app.operations import MODEL_OPTIONS, OperationsRepository
 from app.repository import Repository, UserSettings
 from tests.fakes import MemoryPool
 
@@ -87,3 +88,14 @@ async def test_reset_preserves_settings_and_other_users():
     assert await repo.get_settings((1, 1)) == UserSettings("music", 1.0)
     assert [row["owner"] for row in pool.messages] == [(2, 2)]
     assert bot.session.call_args.args[1].text == ("История очищена. Режим и temperature сохранены.")
+
+
+async def test_settings_displays_database_model_instead_of_env_fallback():
+    pool = MemoryPool()
+    operations = OperationsRepository(pool)
+    await operations.assign_owner(10)
+    await operations.set_model(10, "qwen")
+    settings = Settings(bot_token="unused", postgres_password="unused", llm_model="old-model")
+    bot, _ = await dispatch("/settings", pool, settings=settings, operations=operations)
+    assert f"Модель: {MODEL_OPTIONS['qwen']}\n" in bot.session.call_args.args[1].text
+    assert "old-model" not in bot.session.call_args.args[1].text

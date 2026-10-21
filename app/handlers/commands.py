@@ -4,6 +4,7 @@ from aiogram.types import Message
 
 from app.assistant import ERROR_MESSAGE
 from app.config import Settings
+from app.operations import OperationsRepository
 from app.prompts import MODES
 from app.repository import Repository
 
@@ -36,7 +37,11 @@ async def change_mode(message: Message, command: CommandObject, repository: Repo
 
 
 async def show_settings(
-    message: Message, command: CommandObject, repository: Repository, settings: Settings
+    message: Message,
+    command: CommandObject,
+    repository: Repository,
+    settings: Settings,
+    operations: OperationsRepository | None = None,
 ) -> None:
     if message.from_user is None:
         return
@@ -53,9 +58,10 @@ async def show_settings(
             if argument is not None:
                 await locked.set_temperature(owner, float(argument))
             user = await locked.get_settings(owner)
+        model = await operations.get_model(settings.llm_model) if operations else settings.llm_model
         text = (
             f"Режим: /{user.mode} ({MODES[user.mode]})\n"
-            f"Модель: {settings.llm_model}\n"
+            f"Модель: {model}\n"
             f"Temperature: {user.temperature:.1f}\n"
             "Изменить: /settings 0.0|0.3|0.7|1.0"
         )
