@@ -1,6 +1,7 @@
 .venv/
 .env
 .env.cloud
+*.log
 .deploy/
 __pycache__/
 .pytest_cache/
