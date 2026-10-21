@@ -1,4 +1,4 @@
-from app.prompts import MODES, SYSTEM_PROMPTS, instruction_messages
+from app.prompts import MODES, SYSTEM_PROMPTS, instruction_messages, profile_messages
 
 
 def test_modes_have_distinct_instructions_and_translation_boundary_examples():
@@ -22,3 +22,10 @@ def test_prompt_messages_are_fresh_for_every_request():
     first = instruction_messages("study")
     first[0]["content"] = "changed"
     assert instruction_messages("study")[0]["content"] == SYSTEM_PROMPTS["study"]
+
+
+def test_profile_is_data_with_user_role_and_empty_profile_adds_no_messages():
+    assert profile_messages({}) == []
+    messages = profile_messages({"daw": "Ableton Live"})
+    assert messages[0]["role"] == "user"
+    assert '"daw": "Ableton Live"' in messages[0]["content"]
