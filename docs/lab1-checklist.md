@@ -65,9 +65,9 @@
 Фактически выполнено в Python 3.12.10:
 
 ```text
-python -m pytest -q --tb=short       131 passed, 3 skipped in 11.10s
+python -m pytest -q --tb=short       177 passed, 3 skipped in 13.94s
 python -m ruff check .              All checks passed!
-python -m ruff format --check .     52 files already formatted
+python -m ruff format --check .     65 files already formatted
 python -m pip check                No broken requirements found.
 ```
 
@@ -94,3 +94,18 @@ python -m pip check                No broken requirements found.
 web-результаты добавляют токены вне бюджета локальной истории; соединение БД
 удерживается на время генерации; доставка Telegram и запись ответа в БД
 не являются общей транзакцией. Подробности — в разделе 8 отчёта.
+
+## Дополнительная админ-панель
+
+- Единственный владелец хранится в `administrators`, реальный ID не записан в Git.
+- `/admin` и callbacks проверяют права в БД; в группах модель поменять нельзя.
+- Выбор Qwen/DeepSeek сохраняется в `application_settings`, применяется к новым
+  запросам всех пользователей и показывается в `/settings`.
+- `request_events` сохраняет попытки, ошибки, токены, длительность и известную
+  стоимость независимо от сброса истории; список пользователей постраничный.
+- Остаток лимита ключа и общий баланс аккаунта показаны раздельно. Для второго
+  нужен необязательный `OPENROUTER_MANAGEMENT_KEY`; неизвестное значение не равно нулю.
+- Проверки: test_operations.py, test_billing.py, test_accounting.py,
+  test_admin_service.py, test_admin_handlers.py, test_admin_setup.py, test_admin_flow.py.
+- Назначение реального владельца в серверной БД и живой баланс требуют ручного
+  выполнения. Агент не входил на сервер и не выполнял push или workflow.
