@@ -56,6 +56,7 @@ CREATE INDEX request_events_user_created ON request_events (user_id, created_at)
 POLICY_DDL = """
 ALTER TABLE request_events ADD COLUMN reserved_usd NUMERIC(20, 10)
     NOT NULL DEFAULT 0 CHECK (reserved_usd >= 0);
+UPDATE request_events SET reserved_usd=COALESCE(cost_usd, 0.05);
 CREATE TABLE music_profiles (
     user_id BIGINT PRIMARY KEY,
     data JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(data) = 'object'),

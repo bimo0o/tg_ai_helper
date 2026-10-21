@@ -7,7 +7,7 @@ import pytest
 from app.db import create_pool
 from app.operations import MODEL_OPTIONS, OperationsRepository
 from app.repository import Repository, UserSettings
-from app.schema import migrate
+from app.schema import ADMIN_DDL, DDL, migrate
 from tests.test_integration import database as database
 
 pytestmark = [
@@ -53,3 +53,29 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
         assert stats["requests"] == 1 and stats["cost_usd"] == Decimal("0.01")
     finally:
         await restored_pool.close()
+
+
+async def test_budget_migration_accounts_for_older_known_and_unknown_costs(database):
+    import uuid
+
+    settings, _, _, _ = database
+    pool = await create_pool(settings)
+    try:
+        await pool.execute(DDL)
+        await pool.execute(ADMIN_DDL)
+        await pool.execute("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY)")
+        await pool.execute("INSERT INTO schema_migrations VALUES (1), (2)")
+        for cost in (Decimal("0.03"), None):
+            await pool.execute(
+                "INSERT INTO request_events "
+                "(request_id, chat_id, user_id, model, mode, status, cost_usd) "
+                "VALUES ($1, 1, 1, 'model', 'study', 'success', $2)",
+                uuid.uuid4(),
+                cost,
+            )
+        await migrate(pool)
+        assert await pool.fetchval("SELECT sum(reserved_usd) FROM request_events") == Decimal(
+            "0.08"
+        )
+    finally:
+        await pool.close()
