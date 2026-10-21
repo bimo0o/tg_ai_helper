@@ -25,6 +25,22 @@ class MemoryPool:
 
     async def execute(self, query, *args):
         self.calls.append((query, args))
+        if query.startswith("DELETE FROM messages WHERE created_at"):
+            cutoff = datetime.now(UTC) - timedelta(days=args[0])
+            self.messages = [row for row in self.messages if row["created_at"] >= cutoff]
+            return
+        if query.startswith("DELETE FROM request_events WHERE created_at"):
+            cutoff = datetime.now(UTC) - timedelta(days=args[0])
+            self.events = {
+                key: row for key, row in self.events.items() if row["created_at"] >= cutoff
+            }
+            return
+        if query.startswith("DELETE FROM music_profiles WHERE last_used_at"):
+            cutoff = datetime.now(UTC) - timedelta(days=args[0])
+            self.profiles = {
+                key: row for key, row in self.profiles.items() if row["last_used_at"] >= cutoff
+            }
+            return
         if query.startswith("INSERT INTO music_profiles"):
             profile = self.profiles.get(args[0])
             if profile is None or profile["last_used_at"] < datetime.now(UTC) - timedelta(
