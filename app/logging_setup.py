@@ -36,6 +36,7 @@ def configure_logging(settings: Settings) -> None:
                 proxy.password or "",
                 unquote(proxy.password or ""),
                 settings.llm_api_key,
+                settings.openrouter_management_key,
                 settings.llm_base_url,
             ]
         )

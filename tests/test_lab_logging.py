@@ -12,6 +12,7 @@ def test_configured_filter_hides_llm_credentials_in_exception():
             bot_token="example-telegram",
             postgres_password="example-db",
             llm_api_key="example-llm-key",
+            openrouter_management_key="example-management-key",
             llm_base_url="https://api.example/v1",
         )
         configure_logging(settings)
@@ -20,7 +21,8 @@ def test_configured_filter_hides_llm_credentials_in_exception():
             logging.ERROR,
             "",
             1,
-            "example-llm-key https://api.example/v1 https://user:example-pass@host",
+            "example-llm-key example-management-key "
+            "https://api.example/v1 https://user:example-pass@host",
             (),
             None,
         )
@@ -28,6 +30,7 @@ def test_configured_filter_hides_llm_credentials_in_exception():
         handler.filter(record)
         rendered = handler.format(record)
         assert "example-llm-key" not in rendered
+        assert "example-management-key" not in rendered
         assert "api.example" not in rendered
         assert "example-pass" not in rendered
     finally:
