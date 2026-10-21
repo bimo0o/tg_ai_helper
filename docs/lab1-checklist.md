@@ -34,7 +34,7 @@
 | /reset очищает только владельца, сохраняя настройки | Покрыто тестом | test_commands.py; реальную команду показывает студент |
 | Таймаут, HTTP-ошибки, неверный/пустой/незавершённый ответ | Покрыто тестом | test_llm.py |
 | Короткая безопасная русская ошибка | Покрыто тестом | test_messages.py, test_assistant.py |
-| Длинный ответ разбивается последовательно, текст не теряется | Покрыто тестом | test_text.py, test_messages.py; Unicode и parse_mode=None |
+| Длинный ответ разбивается последовательно, текст не теряется | Покрыто тестом | test_text.py, test_messages.py; Unicode, безопасный HTML и разбиение по абзацам |
 | Web для /music, ссылки на источники | Покрыто тестом; требует ручной демонстрации | Проверены payload и извлечение citations; живой поиск не запускался |
 
 ## Нефункциональные требования
@@ -65,9 +65,9 @@
 Фактически выполнено в Python 3.12.10:
 
 ```text
-python -m pytest -q --tb=short       239 passed, 4 skipped
+python -m pytest -q --tb=short       266 passed, 4 skipped
 python -m ruff check .              All checks passed!
-python -m ruff format --check .     76 files already formatted
+python -m ruff format --check .     81 files already formatted
 python -m pip check                No broken requirements found.
 ```
 
@@ -138,3 +138,15 @@ web-результаты добавляют токены вне бюджета �
 - Непустая генерация `length` доставляется с пометкой, без автоматического повтора.
 - Проверки: test_general_search.py, test_schema.py, test_llm.py,
   test_assistant.py и PostgreSQL-сценарий в test_lab_database.py.
+
+
+## Интерфейс Telegram
+
+- Постоянное меню через `/start` и `/menu`; пять режимов без ручных команд.
+- Профиль по полям с отменой, настройки кнопками, админка только владельцу.
+- Очистка истории и профиля с подтверждением; устаревшие подтверждения отклоняются.
+- Повторный выбор активного режима сохраняет историю; callbacks используют ID нажавшего.
+- Markdown преобразуется в безопасный HTML; сообщения до 4096 UTF-16 единиц,
+  границы по абзацам/строкам/словам, теги корректны в каждой части.
+- Проверки: test_interface.py, test_rendering.py, test_messages.py,
+  test_commands.py, test_admin_handlers.py и lifecycle-проверка маршрутизаторов.
