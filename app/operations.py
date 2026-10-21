@@ -4,8 +4,9 @@ from decimal import Decimal
 
 MODEL_OPTIONS = {
     "qwen": "qwen/qwen3-235b-a22b-2507",
-    "deepseek": "deepseek/deepseek-chat-v3-0324",
+    "deepseek": "deepseek/deepseek-v3.2",
 }
+DEFAULT_MODEL = MODEL_OPTIONS["deepseek"]
 
 
 class LimitExceeded(Exception):
@@ -35,10 +36,9 @@ class OperationsRepository:
             raise ValueError("An owner has already been assigned.")
 
     async def get_model(self, fallback: str) -> str:
-        return (
-            await self.pool.fetchval("SELECT model FROM application_settings WHERE singleton=TRUE")
-            or fallback
-        )
+        return await self.pool.fetchval(
+            "SELECT model FROM application_settings WHERE singleton=TRUE"
+        ) or (DEFAULT_MODEL if fallback == MODEL_OPTIONS["qwen"] else fallback)
 
     async def set_model(self, actor_id: int, alias: str) -> bool:
         if alias not in MODEL_OPTIONS:

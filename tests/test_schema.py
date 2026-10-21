@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from app.schema import ADMIN_DDL, DDL, POLICY_DDL, migrate
+from app.schema import ADMIN_DDL, DDL, MODEL_DDL, POLICY_DDL, SCHEMA_VERSION, migrate
 
 
 def pool_with_version(version):
@@ -29,13 +29,13 @@ async def test_clean_schema_install_is_transactional_and_versioned():
 
 
 async def test_second_install_does_not_reapply_ddl():
-    pool, connection, _ = pool_with_version(3)
+    pool, connection, _ = pool_with_version(SCHEMA_VERSION)
     await migrate(pool)
     assert all(call.args != (DDL,) for call in connection.execute.call_args_list)
 
 
 async def test_newer_schema_is_rejected_and_transaction_exits_with_error():
-    pool, _, transaction = pool_with_version(4)
+    pool, _, transaction = pool_with_version(SCHEMA_VERSION + 1)
     with pytest.raises(RuntimeError, match="newer"):
         await migrate(pool)
     assert transaction.__aexit__.call_args.args[0] is RuntimeError
@@ -53,3 +53,14 @@ async def test_admin_database_receives_only_policy_migration():
     pool, connection, _ = pool_with_version(2)
     await migrate(pool)
     assert connection.execute.call_args_list[2].args == (POLICY_DDL,)
+
+
+async def test_policy_database_upgrades_only_the_selected_model_once():
+    pool, connection, _ = pool_with_version(3)
+    await migrate(pool)
+    assert connection.execute.call_args_list[2].args == (MODEL_DDL,)
+    assert connection.execute.call_args_list[3].args == (
+        "INSERT INTO schema_migrations (version) VALUES ($1)",
+        4,
+    )
+    assert connection.execute.await_count == 4

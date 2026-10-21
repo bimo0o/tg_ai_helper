@@ -9,7 +9,7 @@ from app.music_profile import MusicProfiles
 from app.operations import MODEL_OPTIONS, OperationsRepository
 from app.repository import DialogueBusy, Repository, UserSettings
 from app.retention import purge
-from app.schema import ADMIN_DDL, DDL, migrate
+from app.schema import ADMIN_DDL, DDL, SCHEMA_VERSION, migrate
 from tests.test_integration import database as database
 
 pytestmark = [
@@ -24,7 +24,7 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
     try:
         await migrate(pool)
         await migrate(pool)
-        assert await pool.fetchval("SELECT count(*) FROM schema_migrations") == 3
+        assert await pool.fetchval("SELECT count(*) FROM schema_migrations") == SCHEMA_VERSION
         repo = Repository(pool)
         async with repo.locked((1, 1)):
             with pytest.raises(DialogueBusy):
@@ -85,6 +85,9 @@ async def test_budget_migration_accounts_for_older_known_and_unknown_costs(datab
         await pool.execute(ADMIN_DDL)
         await pool.execute("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY)")
         await pool.execute("INSERT INTO schema_migrations VALUES (1), (2)")
+        await pool.execute(
+            "INSERT INTO application_settings (model) VALUES ($1)", MODEL_OPTIONS["qwen"]
+        )
         for cost in (Decimal("0.03"), None):
             await pool.execute(
                 "INSERT INTO request_events "
@@ -94,6 +97,10 @@ async def test_budget_migration_accounts_for_older_known_and_unknown_costs(datab
                 cost,
             )
         await migrate(pool)
+        assert await OperationsRepository(pool).get_model("") == MODEL_OPTIONS["deepseek"]
+        await pool.execute("UPDATE application_settings SET model=$1", MODEL_OPTIONS["qwen"])
+        await migrate(pool)
+        assert await OperationsRepository(pool).get_model("") == MODEL_OPTIONS["qwen"]
         assert await pool.fetchval("SELECT sum(reserved_usd) FROM request_events") == Decimal(
             "0.08"
         )

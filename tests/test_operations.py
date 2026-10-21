@@ -8,6 +8,16 @@ from app.repository import Repository
 from tests.fakes import MemoryPool
 
 
+async def test_old_env_default_moves_to_deepseek_but_admin_choice_remains_explicit():
+    pool = MemoryPool()
+    repo = OperationsRepository(pool)
+    assert await repo.get_model(MODEL_OPTIONS["qwen"]) == MODEL_OPTIONS["deepseek"]
+    assert await repo.get_model("custom-model") == "custom-model"
+    await repo.assign_owner(10)
+    await repo.set_model(10, "qwen")
+    assert await repo.get_model(MODEL_OPTIONS["deepseek"]) == MODEL_OPTIONS["qwen"]
+
+
 async def test_single_owner_persists_and_unauthorized_model_change_is_rejected():
     pool = MemoryPool()
     repo = OperationsRepository(pool)

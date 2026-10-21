@@ -2,7 +2,7 @@
 
 import asyncpg
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DDL = """
 CREATE TABLE IF NOT EXISTS user_settings (
     chat_id BIGINT NOT NULL,
@@ -65,7 +65,13 @@ CREATE TABLE music_profiles (
 );
 CREATE INDEX music_profiles_last_used ON music_profiles (last_used_at);
 """
-MIGRATIONS = {1: DDL, 2: ADMIN_DDL, 3: POLICY_DDL}
+MODEL_DDL = """
+UPDATE application_settings SET model='deepseek/deepseek-v3.2'
+WHERE singleton=TRUE AND model IN (
+    'qwen/qwen3-235b-a22b-2507', 'deepseek/deepseek-chat-v3-0324'
+);
+"""
+MIGRATIONS = {1: DDL, 2: ADMIN_DDL, 3: POLICY_DDL, 4: MODEL_DDL}
 
 
 async def migrate(pool: asyncpg.Pool) -> None:

@@ -18,7 +18,7 @@ async def assign(settings: Settings, user_id: int) -> None:
         operations = OperationsRepository(pool)
         await operations.assign_owner(user_id)
         if not await operations.get_model(""):
-            await operations.set_model(user_id, "qwen")
+            await operations.set_model(user_id, "deepseek")
     finally:
         await pool.close()
 
