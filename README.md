@@ -2,9 +2,13 @@
 
 ## Лабораторная № 1: принятые решения и миграции
 
-Провайдер — OpenRouter, обычная instruct-модель
-`qwen/qwen3-235b-a22b-2507` в примере конфигурации. Через `/admin` владелец
-может переключить общую модель на `deepseek/deepseek-chat-v3-0324`.
+Провайдер — OpenRouter, основная модель `deepseek/deepseek-v3.2` с явно
+отключённым reasoning. Через `/admin` можно выбрать DeepSeek V3.2 или Qwen.
+Для OpenRouter включён приоритет throughput провайдера; скорость не гарантируется,
+цена может отличаться от минимальной. Миграция 4 однократно заменяет сохранённые
+старые Qwen/DeepSeek на V3.2; последующий ручной выбор Qwen сохраняется.
+Без выбора в БД прежний Qwen из env также заменяется основной моделью; другие
+явно заданные модели сохраняются.
 Режимы: `/study`, `/translate`,
 `/music` (создание музыки, аранжировка, саунд-дизайн, сведение и плагины).
 В `/music` доступен явный web-поиск командой `/search <вопрос>`; обычные
@@ -458,7 +462,7 @@ tuple всегда содержит только неизменяемые объ
 
 Проверенные источники API: [OpenRouter web-плагин](https://openrouter.ai/docs/guides/features/plugins/web-search),
 [Qwen](https://openrouter.ai/qwen/qwen3-235b-a22b-2507),
-[DeepSeek](https://openrouter.ai/deepseek/deepseek-chat-v3-0324),
+[DeepSeek](https://openrouter.ai/deepseek/deepseek-v3.2),
 [aiohttp](https://docs.aiohttp.org/en/stable/client_quickstart.html).
 
 ## 12. Состояние автоматической проверки
@@ -533,7 +537,7 @@ Workflow ждёт готовности сервисов; при ошибке в�
 указанной командой и откройте `/admin`. Агент не выполнял push, запуск
 workflow или вход на сервер; реальный ID в серверную БД агентом не записан.
 
-Последний полный прогон: **212 passed, 4 skipped**; ruff check/format и pip check
+Последний полный прогон: **216 passed, 4 skipped**; ruff check/format и pip check
 прошли. Docker/PostgreSQL, назначение владельца на сервере, живой баланс
 и платная генерация требуют ручной проверки.
 
