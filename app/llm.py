@@ -107,7 +107,7 @@ class LLMClient:
             }
             if urlsplit(self.url).hostname == "openrouter.ai":
                 payload["provider"]["sort"] = "throughput"
-                if model == "deepseek/deepseek-v3.2":
+                if model in {"deepseek/deepseek-v3.2", "deepseek/deepseek-v4.1-flash"}:
                     payload["reasoning"] = {"enabled": False}
             if web:
                 payload["plugins"] = [{"id": "web", "engine": "exa", "max_results": 3}]

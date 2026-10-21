@@ -39,10 +39,11 @@ async def test_success_parameters_usage_and_no_sensitive_logs(caplog):
     assert "private-dialogue" not in caplog.text and "example-only" not in caplog.text
 
 
-async def test_openrouter_deepseek_disables_reasoning_and_prioritizes_throughput():
+@pytest.mark.parametrize("model", ["deepseek/deepseek-v3.2", "deepseek/deepseek-v4.1-flash"])
+async def test_openrouter_deepseek_disables_reasoning_and_prioritizes_throughput(model):
     _, session = client(response())
     llm = LLMClient(session, "https://openrouter.ai/api/v1", "example-only")
-    assert (await llm.generate([], "deepseek/deepseek-v3.2", 0.3)).ok
+    assert (await llm.generate([], model, 0.3)).ok
     payload = session.post.call_args.kwargs["json"]
     assert payload["reasoning"] == {"enabled": False}
     assert payload["provider"] == {"require_parameters": True, "sort": "throughput"}

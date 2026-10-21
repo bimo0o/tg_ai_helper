@@ -2,7 +2,7 @@
 
 import asyncpg
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 DDL = """
 CREATE TABLE IF NOT EXISTS user_settings (
     chat_id BIGINT NOT NULL,
@@ -71,7 +71,11 @@ WHERE singleton=TRUE AND model IN (
     'qwen/qwen3-235b-a22b-2507', 'deepseek/deepseek-chat-v3-0324'
 );
 """
-MIGRATIONS = {1: DDL, 2: ADMIN_DDL, 3: POLICY_DDL, 4: MODEL_DDL}
+FLASH_DDL = """
+UPDATE application_settings SET model='deepseek/deepseek-v4.1-flash'
+WHERE singleton=TRUE AND model='deepseek/deepseek-v3.2';
+"""
+MIGRATIONS = {1: DDL, 2: ADMIN_DDL, 3: POLICY_DDL, 4: MODEL_DDL, 5: FLASH_DDL}
 
 
 async def migrate(pool: asyncpg.Pool) -> None:

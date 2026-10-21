@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from app.schema import ADMIN_DDL, DDL, MODEL_DDL, POLICY_DDL, SCHEMA_VERSION, migrate
+from app.schema import ADMIN_DDL, DDL, FLASH_DDL, MODEL_DDL, POLICY_DDL, SCHEMA_VERSION, migrate
 
 
 def pool_with_version(version):
@@ -63,4 +63,14 @@ async def test_policy_database_upgrades_only_the_selected_model_once():
         "INSERT INTO schema_migrations (version) VALUES ($1)",
         4,
     )
-    assert connection.execute.await_count == 4
+    assert connection.execute.call_args_list[4].args == (FLASH_DDL,)
+
+
+async def test_existing_deepseek_database_receives_flash_upgrade():
+    pool, connection, _ = pool_with_version(4)
+    await migrate(pool)
+    assert connection.execute.call_args_list[2].args == (FLASH_DDL,)
+    assert connection.execute.call_args_list[3].args == (
+        "INSERT INTO schema_migrations (version) VALUES ($1)",
+        5,
+    )

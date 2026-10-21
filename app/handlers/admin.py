@@ -18,7 +18,7 @@ def keyboard(view: AdminView) -> InlineKeyboardMarkup:
         ],
         [
             button("Выбрать Qwen", "adm:model:qwen"),
-            button("Выбрать DeepSeek", "adm:model:deepseek"),
+            button("DeepSeek V4.1 Flash", "adm:model:deepseek"),
         ],
     ]
     navigation = []

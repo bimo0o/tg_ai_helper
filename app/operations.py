@@ -4,7 +4,7 @@ from decimal import Decimal
 
 MODEL_OPTIONS = {
     "qwen": "qwen/qwen3-235b-a22b-2507",
-    "deepseek": "deepseek/deepseek-v3.2",
+    "deepseek": "deepseek/deepseek-v4.1-flash",
 }
 DEFAULT_MODEL = MODEL_OPTIONS["deepseek"]
 
@@ -38,7 +38,11 @@ class OperationsRepository:
     async def get_model(self, fallback: str) -> str:
         return await self.pool.fetchval(
             "SELECT model FROM application_settings WHERE singleton=TRUE"
-        ) or (DEFAULT_MODEL if fallback == MODEL_OPTIONS["qwen"] else fallback)
+        ) or (
+            DEFAULT_MODEL
+            if fallback in {MODEL_OPTIONS["qwen"], "deepseek/deepseek-v3.2"}
+            else fallback
+        )
 
     async def set_model(self, actor_id: int, alias: str) -> bool:
         if alias not in MODEL_OPTIONS:
