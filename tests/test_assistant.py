@@ -1,6 +1,8 @@
 from dataclasses import replace
 
-from app.assistant import ERROR_MESSAGE, Assistant
+import pytest
+
+from app.assistant import ERROR_MESSAGE, TIMEOUT_MESSAGE, TRUNCATED_NOTICE, Assistant
 from app.config import Settings
 from app.prompts import SYSTEM_PROMPTS
 from app.repository import Repository
@@ -73,7 +75,7 @@ async def test_request_over_limit_rejected_before_api_and_database():
 async def test_llm_error_is_safe_and_only_user_message_is_saved():
     service, pool, _ = assistant(error=TimeoutError("https://user:example@host private prompt"))
     reply = await service.respond((1, 1), "вопрос")
-    assert reply.text == ERROR_MESSAGE
+    assert reply.text == TIMEOUT_MESSAGE
     assert not reply.ok and reply.error_kind == "timeout"
     assert [row["role"] for row in pool.messages] == ["user"]
 
@@ -82,4 +84,22 @@ async def test_empty_llm_response_is_never_saved_or_returned_as_empty():
     service, pool, _ = assistant(response(""))
     reply = await service.respond((1, 1), "вопрос")
     assert reply.text == ERROR_MESSAGE
+    assert [row["role"] for row in pool.messages] == ["user"]
+
+
+async def test_partial_answer_is_delivered_and_saved_without_automatic_retry():
+    service, pool, http = assistant(response("Полезная часть", finish="length"))
+    reply = await service.respond((1, 1), "question")
+    assert reply.ok and reply.text == "Полезная часть\n\n" + TRUNCATED_NOTICE
+    assert pool.messages[-1]["content"] == reply.text
+    assert http.post.call_count == 1
+
+
+@pytest.mark.parametrize("status", [401, 402, 403, 429, 503])
+async def test_provider_failure_has_specific_safe_message_and_preserves_no_answer(status):
+    service, pool, _ = assistant(status=status)
+    reply = await service.respond((1, 1), "question")
+    assert not reply.ok and reply.error_kind == "http"
+    assert reply.text != ERROR_MESSAGE
+    assert "example-only" not in reply.text
     assert [row["role"] for row in pool.messages] == ["user"]

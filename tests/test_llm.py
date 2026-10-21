@@ -81,12 +81,27 @@ async def test_http_errors(status):
         (response("  "), "empty"),
         (response(None), "invalid"),
         ({}, "invalid"),
-        (response(finish="length"), "incomplete"),
+        (response("", finish="length"), "incomplete"),
         ({"choices": []}, "invalid"),
     ],
 )
 def test_invalid_empty_and_incomplete_response(data, kind):
     assert parse_response(data).error_kind == kind
+
+
+def test_length_limit_preserves_nonempty_answer_and_marks_it_as_partial():
+    result = parse_response(response("Начало полезного ответа", finish="length"))
+    assert result.ok and result.truncated and result.finish_reason == "length"
+    assert result.text == "Начало полезного ответа"
+
+
+async def test_diagnostic_logs_include_status_and_finish_but_not_answer(caplog):
+    llm, _ = client(response("private answer", finish="length"))
+    with caplog.at_level("INFO", logger="app.llm"):
+        await llm.generate([], "model", 0.3)
+    assert "result=truncated" in caplog.text
+    assert "http_status=200 finish_reason=length" in caplog.text
+    assert "private answer" not in caplog.text
 
 
 async def test_web_and_citations():

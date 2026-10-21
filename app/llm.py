@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from urllib.parse import urlsplit
 
@@ -22,11 +22,15 @@ class Generation:
     usage: dict[str, int] = field(default_factory=dict)
     citations: tuple[str, ...] = ()
     cost_usd: Decimal | None = None
+    finish_reason: str | None = None
+    http_status: int | None = None
+    truncated: bool = False
 
 
 def parse_response(data: object) -> Generation:
     usage = {}
     cost = None
+    finish = None
     try:
         if not isinstance(data, dict):
             raise ValueError
@@ -41,14 +45,28 @@ def parse_response(data: object) -> Generation:
             if cost is not None and cost < 0:
                 cost = None
         choice = data["choices"][0]
-        if choice.get("finish_reason") != "stop":
-            return Generation(False, error_kind="incomplete", usage=usage, cost_usd=cost)
+        raw_finish = choice.get("finish_reason")
+        finish = (
+            raw_finish
+            if raw_finish in {"stop", "length", "content_filter", "tool_calls", "error"}
+            else "unknown"
+        )
+        if finish not in {"stop", "length"}:
+            return Generation(
+                False, error_kind="incomplete", usage=usage, cost_usd=cost, finish_reason=finish
+            )
         message = choice["message"]
         text = message["content"]
         if not isinstance(text, str):
             raise ValueError
         if not text.strip():
-            return Generation(False, error_kind="empty", usage=usage, cost_usd=cost)
+            return Generation(
+                False,
+                error_kind="incomplete" if finish == "length" else "empty",
+                usage=usage,
+                cost_usd=cost,
+                finish_reason=finish,
+            )
         citations = []
         for annotation in message.get("annotations") or []:
             if not isinstance(annotation, dict):
@@ -67,9 +85,19 @@ def parse_response(data: object) -> Generation:
                 and url not in citations
             ):
                 citations.append(url)
-        return Generation(True, text=text, usage=usage, citations=tuple(citations), cost_usd=cost)
+        return Generation(
+            True,
+            text=text,
+            usage=usage,
+            citations=tuple(citations),
+            cost_usd=cost,
+            finish_reason=finish,
+            truncated=finish == "length",
+        )
     except (KeyError, IndexError, TypeError, ValueError, AttributeError):
-        return Generation(False, error_kind="invalid", usage=usage, cost_usd=cost)
+        return Generation(
+            False, error_kind="invalid", usage=usage, cost_usd=cost, finish_reason=finish
+        )
 
 
 class LLMClient:
@@ -126,16 +154,20 @@ class LLMClient:
                             result = Generation(False, error_kind="invalid")
                     else:
                         result = Generation(False, error_kind="http")
+                    result = replace(result, http_status=response.status)
         except TimeoutError:
             result = Generation(False, error_kind="timeout")
         except (aiohttp.ClientError, OSError):
             result = Generation(False, error_kind="service")
         finally:
             logger.info(
-                "LLM end request_id=%s model=%s duration_ms=%d result=%s",
+                "LLM end request_id=%s model=%s duration_ms=%d result=%s "
+                "http_status=%s finish_reason=%s",
                 request_id,
                 model,
                 int((time.monotonic() - started) * 1000),
-                "ok" if result.ok else result.error_kind,
+                "truncated" if result.truncated else "ok" if result.ok else result.error_kind,
+                result.http_status,
+                result.finish_reason,
             )
         return result

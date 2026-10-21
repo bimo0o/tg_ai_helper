@@ -7,7 +7,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.methods import SendChatAction, SendMessage
 from aiogram.types import Chat, Message, PhotoSize, Update, User
 
-from app.assistant import ERROR_MESSAGE
+from app.assistant import TIMEOUT_MESSAGE
 from app.handlers.commands import create_router as commands_router
 from app.handlers.messages import UNKNOWN_COMMAND
 from app.handlers.messages import create_router as messages_router
@@ -53,7 +53,7 @@ async def test_long_response_is_sent_in_order_without_any_text_loss():
 async def test_error_returns_exact_safe_text():
     methods, _, pool, _ = await dispatch("вопрос", error=TimeoutError("example-private-details"))
     sent = [method for method in methods if isinstance(method, SendMessage)]
-    assert [method.text for method in sent] == [ERROR_MESSAGE]
+    assert [method.text for method in sent] == [TIMEOUT_MESSAGE]
     assert [row["role"] for row in pool.messages] == ["user"]
 
 

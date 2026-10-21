@@ -13,6 +13,27 @@ from app.repository import BUSY_MESSAGE, DialogueBusy, Owner, Repository
 logger = logging.getLogger(__name__)
 ERROR_MESSAGE = "Не удалось получить ответ. Попробуйте ещё раз позже."
 EMPTY_MESSAGE = "Отправьте непустое текстовое сообщение."
+TIMEOUT_MESSAGE = "Модель не успела ответить за отведённое время. Попробуйте позже."
+TRUNCATED_NOTICE = (
+    "Ответ достиг лимита генерации и может быть незавершён. "
+    "Можно попросить продолжить с последнего пункта."
+)
+
+
+def generation_error(result: Generation) -> str:
+    if result.error_kind == "timeout":
+        return TIMEOUT_MESSAGE
+    if result.http_status == 429:
+        return "Сервис модели ограничил частоту запросов. Попробуйте позже."
+    if result.http_status in {401, 402, 403}:
+        return "Сервис модели отклонил доступ к запросу. Требуется проверка настроек владельцем."
+    if result.http_status is not None and result.http_status >= 500:
+        return "Сервис модели временно недоступен. Попробуйте позже."
+    if result.error_kind == "incomplete":
+        return "Модель не вернула завершённый текстовый ответ. Попробуйте переформулировать вопрос."
+    return ERROR_MESSAGE
+
+
 LIMIT_MESSAGES = {
     "rate": "Слишком много запросов. Подождите минуту и попробуйте снова.",
     "daily_requests": "Суточный лимит запросов исчерпан. Попробуйте после 00:00 UTC.",
@@ -106,9 +127,11 @@ class Assistant:
                     max_output_tokens=self.settings.max_output_tokens,
                 )
                 if not result.ok:
-                    reply = Reply(ERROR_MESSAGE, error_kind=result.error_kind)
+                    reply = Reply(generation_error(result), error_kind=result.error_kind)
                     return reply
                 answer = result.text
+                if result.truncated:
+                    answer += "\n\n" + TRUNCATED_NOTICE
                 sources = [url for url in result.citations if url not in answer]
                 if sources:
                     answer += "\n\nИсточники:\n" + "\n".join(sources)
