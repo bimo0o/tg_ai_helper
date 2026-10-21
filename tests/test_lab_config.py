@@ -22,6 +22,13 @@ def test_llm_config_defaults_and_hidden_credentials():
     assert "example-only" not in repr(settings)
 
 
+def test_management_key_is_optional_and_hidden_in_repr():
+    settings = replace(configured(), openrouter_management_key="example-management-only")
+    settings.validate_llm()
+    assert "example-management-only" not in repr(settings)
+    assert configured().openrouter_management_key == ""
+
+
 @pytest.mark.parametrize("name", ["llm_base_url", "llm_api_key", "llm_model"])
 def test_required_llm_setting(name):
     with pytest.raises(ConfigError, match=name.upper()):

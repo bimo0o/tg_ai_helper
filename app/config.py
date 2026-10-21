@@ -27,6 +27,7 @@ class Settings:
     health_port: int = 8080
     llm_base_url: str = field(default="", repr=False)
     llm_api_key: str = field(default="", repr=False)
+    openrouter_management_key: str = field(default="", repr=False)
     llm_model: str = ""
     llm_timeout_seconds: int = 30
     history_max_messages: int = 40
@@ -130,6 +131,7 @@ class Settings:
             health_port=port("HEALTH_PORT", "8080"),
             llm_base_url=value("LLM_BASE_URL"),
             llm_api_key=value("LLM_API_KEY"),
+            openrouter_management_key=value("OPENROUTER_MANAGEMENT_KEY"),
             llm_model=value("LLM_MODEL"),
             llm_timeout_seconds=integer("LLM_TIMEOUT_SECONDS", "30"),
             history_max_messages=integer("HISTORY_MAX_MESSAGES", "40"),
