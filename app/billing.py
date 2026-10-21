@@ -58,6 +58,10 @@ class BillingClient:
         account = await self._get("/credits", self.management_key) if self.management_key else None
         key_ok = bool(key is not None and {"usage", "limit", "limit_remaining"} <= key.keys())
         key = key or {}
+        key_ok = key_ok and all(
+            key.get(name) is None or decimal_value(key[name]) is not None
+            for name in ("limit", "limit_remaining")
+        )
         total = decimal_value(account.get("total_credits")) if account else None
         spent = decimal_value(account.get("total_usage")) if account else None
         return Budget(

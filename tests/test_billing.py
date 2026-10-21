@@ -65,3 +65,8 @@ async def test_management_key_is_never_sent_to_other_hosts():
 @pytest.mark.parametrize("value", [None, True, "nan", "infinity", "not-a-number"])
 def test_invalid_decimal(value):
     assert decimal_value(value) is None
+
+
+async def test_malformed_limit_is_not_mistaken_for_unlimited_budget():
+    billing, _ = client({"data": {"usage": 1, "limit": "invalid", "limit_remaining": "invalid"}})
+    assert not (await billing.get_budget()).key_ok
