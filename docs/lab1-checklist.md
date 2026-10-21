@@ -65,9 +65,9 @@
 Фактически выполнено в Python 3.12.10:
 
 ```text
-python -m pytest -q --tb=short       216 passed, 4 skipped
+python -m pytest -q --tb=short       238 passed, 4 skipped
 python -m ruff check .              All checks passed!
-python -m ruff format --check .     75 files already formatted
+python -m ruff format --check .     76 files already formatted
 python -m pip check                No broken requirements found.
 ```
 
@@ -128,3 +128,14 @@ web-результаты добавляют токены вне бюджета �
   test_music_profile.py, test_music_context.py, test_music_handlers.py,
   test_retention.py и расширенный test_admin_flow.py.
 - Работы под высокую нагрузку отложены; качество `/music` проверяет владелец.
+
+
+## Flash и общий поиск
+
+- Основная модель: DeepSeek V4.1 Flash, reasoning явно отключён; миграции 5 и 6.
+- `/chat`: общий диалог; `/web`: поиск по каждому сообщению с источниками.
+- `/search`: разовый поиск на любую тему, выбранный режим не меняется.
+- Общий поиск изолирован от музыкального профиля; бюджеты и квоты сохраняются.
+- Непустая генерация `length` доставляется с пометкой, без автоматического повтора.
+- Проверки: test_general_search.py, test_schema.py, test_llm.py,
+  test_assistant.py и PostgreSQL-сценарий в test_lab_database.py.
