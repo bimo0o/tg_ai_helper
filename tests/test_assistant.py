@@ -27,7 +27,7 @@ async def test_regular_message_uses_active_prompt_and_exact_request_parameters()
         {"role": "user", "content": "Как записать бас?"},
     ]
     assert payload["temperature"] == 0.7 and payload["model"] == "test-model"
-    assert "plugins" in payload
+    assert "plugins" not in payload
     assert [row["role"] for row in pool.messages] == ["user", "assistant"]
 
 

@@ -4,13 +4,19 @@ from dataclasses import dataclass, field
 
 from app.config import Settings
 from app.llm import Generation, LLMClient
-from app.operations import OperationsRepository
+from app.operations import LimitExceeded, OperationsRepository
 from app.prompts import instruction_messages
 from app.repository import Owner, Repository
 
 logger = logging.getLogger(__name__)
 ERROR_MESSAGE = "Не удалось получить ответ. Попробуйте ещё раз позже."
 EMPTY_MESSAGE = "Отправьте непустое текстовое сообщение."
+LIMIT_MESSAGES = {
+    "rate": "Слишком много запросов. Подождите минуту и попробуйте снова.",
+    "daily_requests": "Суточный лимит запросов исчерпан. Попробуйте после 00:00 UTC.",
+    "user_budget": "Ваш дневной бюджет исчерпан или зарезервирован. Попробуйте позже.",
+    "global_budget": "Дневной бюджет бота исчерпан или зарезервирован. Попробуйте позже.",
+}
 
 
 @dataclass(frozen=True)
@@ -34,7 +40,7 @@ class Assistant:
         self.settings = settings
         self.operations = operations
 
-    async def respond(self, owner: Owner, text: str) -> Reply:
+    async def respond(self, owner: Owner, text: str, *, use_web: bool = False) -> Reply:
         if not text.strip():
             return Reply(EMPTY_MESSAGE, error_kind="input")
         if len(text) > self.settings.history_max_chars:
@@ -49,10 +55,16 @@ class Assistant:
         result = Generation(False, error_kind="service")
         reply = Reply(ERROR_MESSAGE, error_kind="service")
         try:
+            if use_web:
+                user = await self.repository.get_settings(owner)
+                if user.mode != "music":
+                    return Reply("Для поиска сначала включите /music.", error_kind="input")
+                if not self.settings.music_web_search:
+                    return Reply("Web-поиск отключён в настройках бота.", error_kind="input")
             model = self.settings.llm_model
             if self.operations is not None:
                 model = await self.operations.get_model(model)
-                event = await self.operations.start_request(owner, model)
+                event = await self.operations.start_request(owner, model, self.settings)
             async with self.repository.locked(owner) as repository:
                 user = await repository.get_settings(owner)
                 mode = user.mode
@@ -72,7 +84,8 @@ class Assistant:
                     messages,
                     model,
                     user.temperature,
-                    web=user.mode == "music" and self.settings.music_web_search,
+                    web=use_web and user.mode == "music" and self.settings.music_web_search,
+                    max_output_tokens=self.settings.max_output_tokens,
                 )
                 if not result.ok:
                     return Reply(ERROR_MESSAGE, error_kind=result.error_kind)
@@ -82,6 +95,8 @@ class Assistant:
                     answer += "\n\nИсточники:\n" + "\n".join(sources)
                 await repository.add_message(owner, "assistant", answer, user.mode)
                 reply = Reply(answer, ok=True, usage=result.usage)
+        except LimitExceeded as exc:
+            reply = Reply(LIMIT_MESSAGES[exc.kind], error_kind=exc.kind)
         except Exception:
             logger.warning("Dialogue processing failed; no request content logged.")
         finally:
