@@ -4,8 +4,9 @@ from dataclasses import dataclass, field
 
 from app.config import Settings
 from app.llm import Generation, LLMClient
+from app.music_profile import MusicProfiles
 from app.operations import LimitExceeded, OperationsRepository
-from app.prompts import instruction_messages
+from app.prompts import instruction_messages, profile_messages
 from app.repository import Owner, Repository
 
 logger = logging.getLogger(__name__)
@@ -34,11 +35,13 @@ class Assistant:
         llm: LLMClient,
         settings: Settings,
         operations: OperationsRepository | None = None,
+        profiles: MusicProfiles | None = None,
     ):
         self.repository = repository
         self.llm = llm
         self.settings = settings
         self.operations = operations
+        self.profiles = profiles
 
     async def respond(self, owner: Owner, text: str, *, use_web: bool = False) -> Reply:
         if not text.strip():
@@ -55,9 +58,13 @@ class Assistant:
         result = Generation(False, error_kind="service")
         reply = Reply(ERROR_MESSAGE, error_kind="service")
         try:
+            profile = {}
+            if self.profiles is not None or use_web:
+                snapshot = await self.repository.get_settings(owner)
+                if snapshot.mode == "music" and self.profiles is not None:
+                    profile = await self.profiles.get(owner[1])
             if use_web:
-                user = await self.repository.get_settings(owner)
-                if user.mode != "music":
+                if snapshot.mode != "music":
                     return Reply("Для поиска сначала включите /music.", error_kind="input")
                 if not self.settings.music_web_search:
                     return Reply("Web-поиск отключён в настройках бота.", error_kind="input")
@@ -68,14 +75,19 @@ class Assistant:
             async with self.repository.locked(owner) as repository:
                 user = await repository.get_settings(owner)
                 mode = user.mode
+                context = profile_messages(profile) if mode == "music" else []
+                profile_chars = sum(len(message["content"]) for message in context)
+                if profile_chars + len(text) > self.settings.history_max_chars:
+                    context, profile_chars = [], 0
                 history = await repository.get_history(
                     owner,
                     user.mode,
-                    self.settings.history_max_messages - 1,
-                    self.settings.history_max_chars - len(text),
+                    self.settings.history_max_messages - 1 - len(context),
+                    self.settings.history_max_chars - len(text) - profile_chars,
                 )
                 messages = [
                     *instruction_messages(user.mode),
+                    *context,
                     *history,
                     {"role": "user", "content": text},
                 ]
