@@ -65,13 +65,13 @@
 Фактически выполнено в Python 3.12.10:
 
 ```text
-python -m pytest -q --tb=short       177 passed, 3 skipped in 13.94s
+python -m pytest -q --tb=short       206 passed, 4 skipped
 python -m ruff check .              All checks passed!
-python -m ruff format --check .     65 files already formatted
+python -m ruff format --check .     74 files already formatted
 python -m pip check                No broken requirements found.
 ```
 
-Пропущены: Docker Compose и два интеграционных сценария настоящей БД.
+Пропущены: Docker Compose и три интеграционных сценария настоящей БД.
 В этом окружении команды выполнялись через `.venv\Scripts\python.exe`.
 
 ## Эксперимент, отчёт и сдача
@@ -109,3 +109,19 @@ web-результаты добавляют токены вне бюджета �
   test_admin_service.py, test_admin_handlers.py, test_admin_setup.py, test_admin_flow.py.
 - Назначение реального владельца в серверной БД и живой баланс требуют ручного
   выполнения. Агент не входил на сервер и не выполнял push или workflow.
+
+## Дополнительные согласованные ограничения
+
+- Расходы: $2/сутки на бота, $0.20/сутки на пользователя, резерв $0.05,
+  3 попытки/минуту, 50/сутки, до 1500 выходных токенов. Допуск атомарный в БД.
+- Неизвестная стоимость сохраняет резерв; локальная политика не заменяет
+  внешний лимит выделенного ключа OpenRouter.
+- `/music` не запускает поиск обычным текстом; явный `/search` использует web.
+- Музыкальный профиль изолирован по пользователю, хранится в БД, переживает
+  `/reset`, редактируется через `/profile` и удаляется через `/profile clear`.
+- Сроки: история 30 дней, статистика 90, профиль 180 дней без использования.
+  Просроченное не передаётся модели/панели; физическая очистка каждый час.
+- Проверки: test_budget_policy.py, test_request_controls.py,
+  test_music_profile.py, test_music_context.py, test_music_handlers.py,
+  test_retention.py и расширенный test_admin_flow.py.
+- Работы под высокую нагрузку отложены; качество `/music` проверяет владелец.
