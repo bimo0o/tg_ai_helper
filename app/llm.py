@@ -105,6 +105,10 @@ class LLMClient:
                 "max_tokens": max_output_tokens,
                 "provider": {"require_parameters": True},
             }
+            if urlsplit(self.url).hostname == "openrouter.ai":
+                payload["provider"]["sort"] = "throughput"
+                if model == "deepseek/deepseek-v3.2":
+                    payload["reasoning"] = {"enabled": False}
             if web:
                 payload["plugins"] = [{"id": "web", "engine": "exa", "max_results": 3}]
             async with asyncio.timeout(self.timeout):

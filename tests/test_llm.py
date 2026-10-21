@@ -39,6 +39,26 @@ async def test_success_parameters_usage_and_no_sensitive_logs(caplog):
     assert "private-dialogue" not in caplog.text and "example-only" not in caplog.text
 
 
+async def test_openrouter_deepseek_disables_reasoning_and_prioritizes_throughput():
+    _, session = client(response())
+    llm = LLMClient(session, "https://openrouter.ai/api/v1", "example-only")
+    assert (await llm.generate([], "deepseek/deepseek-v3.2", 0.3)).ok
+    payload = session.post.call_args.kwargs["json"]
+    assert payload["reasoning"] == {"enabled": False}
+    assert payload["provider"] == {"require_parameters": True, "sort": "throughput"}
+    assert payload["max_tokens"] == 1500
+
+
+async def test_reasoning_control_is_not_sent_to_unrelated_model_or_endpoint():
+    llm, session = client(response())
+    await llm.generate([], "deepseek/deepseek-v3.2", 0.3)
+    assert "reasoning" not in session.post.call_args.kwargs["json"]
+    assert "sort" not in session.post.call_args.kwargs["json"]["provider"]
+    llm = LLMClient(session, "https://openrouter.ai/api/v1", "example-only")
+    await llm.generate([], "qwen/qwen3-235b-a22b-2507", 0.3)
+    assert "reasoning" not in session.post.call_args.kwargs["json"]
+
+
 @pytest.mark.parametrize(
     "error,kind", [(TimeoutError(), "timeout"), (aiohttp.ClientConnectionError(), "service")]
 )
