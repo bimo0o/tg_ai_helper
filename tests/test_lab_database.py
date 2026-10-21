@@ -1,8 +1,11 @@
 import os
+from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 
 from app.db import create_pool
+from app.operations import MODEL_OPTIONS, OperationsRepository
 from app.repository import Repository, UserSettings
 from app.schema import migrate
 from tests.test_integration import database as database
@@ -39,5 +42,14 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
         await repo.set_mode((1, 1), "music")
         assert await repo.get_history((1, 1), "study", 40, 8000) == []
         assert len(await repo.get_history((2, 2), "study", 40, 8000)) == 2
+        operations = OperationsRepository(restored_pool)
+        await operations.assign_owner(10)
+        assert await operations.set_model(10, "qwen")
+        assert await operations.get_model("fallback") == MODEL_OPTIONS["qwen"]
+        event = await operations.start_request((2, 2), MODEL_OPTIONS["qwen"])
+        await operations.finish_request(event, "study", True, 10, {}, Decimal("0.01"), None)
+        await repo.clear_history((2, 2))
+        stats = await operations.summary(datetime(1970, 1, 1, tzinfo=UTC))
+        assert stats["requests"] == 1 and stats["cost_usd"] == Decimal("0.01")
     finally:
         await restored_pool.close()
