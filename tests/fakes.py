@@ -43,6 +43,7 @@ class MemoryPool:
                 "prompt_tokens": None,
                 "completion_tokens": None,
                 "duration_ms": None,
+                "reserved_usd": args[4],
             }
             return
         if query.startswith("UPDATE request_events"):
@@ -62,6 +63,8 @@ class MemoryPool:
                     strict=True,
                 )
             )
+            if args[7] is not None:
+                self.events[args[0]]["reserved_usd"] = args[7]
             return
         owner = args[:2]
         if query.startswith("SELECT pg_advisory"):
@@ -83,6 +86,24 @@ class MemoryPool:
 
     async def fetchrow(self, query, *args):
         self.calls.append((query, args))
+        if "AS global_spend" in query:
+            events = list(self.events.values())
+            return {
+                "global_spend": sum(
+                    row["reserved_usd"] for row in events if row["created_at"] >= args[1]
+                ),
+                "user_spend": sum(
+                    row["reserved_usd"]
+                    for row in events
+                    if row["user_id"] == args[0] and row["created_at"] >= args[1]
+                ),
+                "day_count": sum(
+                    row["user_id"] == args[0] and row["created_at"] >= args[1] for row in events
+                ),
+                "minute_count": sum(
+                    row["user_id"] == args[0] and row["created_at"] >= args[2] for row in events
+                ),
+            }
         if "FROM request_events" in query:
             events = [row for row in self.events.values() if row["created_at"] >= args[0]]
             priced = [row for row in events if row["cost_usd"] is not None]
@@ -94,6 +115,7 @@ class MemoryPool:
                 "errors": sum(row["status"] == "error" for row in events),
                 "pending": sum(row["status"] == "started" for row in events),
                 "priced": len(priced),
+                "reserved_usd": sum(row["reserved_usd"] for row in events),
                 "cost_usd": sum(row["cost_usd"] for row in priced),
                 "prompt_tokens": sum(row["prompt_tokens"] or 0 for row in events),
                 "completion_tokens": sum(row["completion_tokens"] or 0 for row in events),
