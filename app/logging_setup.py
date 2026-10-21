@@ -35,8 +35,11 @@ def configure_logging(settings: Settings) -> None:
                 settings.telegram_proxy_url,
                 proxy.password or "",
                 unquote(proxy.password or ""),
+                settings.llm_api_key,
+                settings.llm_base_url,
             ]
         )
     )
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logging.basicConfig(level=settings.log_level, handlers=[handler], force=True)
+    logging.getLogger("aiohttp.client").setLevel(logging.WARNING)
