@@ -21,7 +21,12 @@ jobs:
             echo "=== Pulling latest code ==="
             git pull origin main
             echo "=== Rebuilding and restarting containers ==="
-            docker compose --profile cloud up -d --build
+            if ! docker compose --profile cloud up -d --build --wait --wait-timeout 180; then
+              echo "=== Deployment failed: services did not become healthy ==="
+              docker compose --profile cloud ps || true
+              docker compose --profile cloud logs --tail=50 bot || true
+              exit 1
+            fi
             echo "=== Status ==="
             docker compose --profile cloud ps
             echo "=== Last logs ==="
