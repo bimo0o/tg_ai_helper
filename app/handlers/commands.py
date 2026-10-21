@@ -6,7 +6,7 @@ from app.assistant import ERROR_MESSAGE
 from app.config import Settings
 from app.operations import OperationsRepository
 from app.prompts import MODES
-from app.repository import Repository
+from app.repository import BUSY_MESSAGE, DialogueBusy, Repository
 
 START_MESSAGE = (
     "Я — AI-ассистент студента. Помогу с программированием, переводом и созданием музыки.\n"
@@ -33,6 +33,8 @@ async def change_mode(message: Message, command: CommandObject, repository: Repo
     try:
         await repository.set_mode((message.chat.id, message.from_user.id), mode)
         text = f"Включён режим «{MODES[mode]}». История очищена."
+    except DialogueBusy:
+        text = BUSY_MESSAGE
     except Exception:
         text = ERROR_MESSAGE
     await message.answer(text, parse_mode=None)
@@ -67,6 +69,8 @@ async def show_settings(
             f"Temperature: {user.temperature:.1f}\n"
             "Изменить: /settings 0.0|0.3|0.7|1.0"
         )
+    except DialogueBusy:
+        text = BUSY_MESSAGE
     except Exception:
         text = ERROR_MESSAGE
     await message.answer(text, parse_mode=None)
@@ -80,6 +84,8 @@ async def reset(message: Message, repository: Repository) -> None:
         async with repository.locked(owner) as locked:
             await locked.clear_history(owner)
         text = "История очищена. Режим и temperature сохранены."
+    except DialogueBusy:
+        text = BUSY_MESSAGE
     except Exception:
         text = ERROR_MESSAGE
     await message.answer(text, parse_mode=None)

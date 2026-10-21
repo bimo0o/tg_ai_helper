@@ -1,13 +1,14 @@
 import logging
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 from app.config import Settings
 from app.llm import Generation, LLMClient
 from app.music_profile import MusicProfiles
 from app.operations import LimitExceeded, OperationsRepository
 from app.prompts import instruction_messages, profile_messages
-from app.repository import Owner, Repository
+from app.repository import BUSY_MESSAGE, DialogueBusy, Owner, Repository
 
 logger = logging.getLogger(__name__)
 ERROR_MESSAGE = "Не удалось получить ответ. Попробуйте ещё раз позже."
@@ -57,6 +58,7 @@ class Assistant:
         mode = "unknown"
         result = Generation(False, error_kind="service")
         reply = Reply(ERROR_MESSAGE, error_kind="service")
+        api_started = False
         try:
             profile = {}
             if self.profiles is not None or use_web:
@@ -92,6 +94,7 @@ class Assistant:
                     {"role": "user", "content": text},
                 ]
                 await repository.add_message(owner, "user", text, user.mode)
+                api_started = True
                 result = await self.llm.generate(
                     messages,
                     model,
@@ -100,13 +103,16 @@ class Assistant:
                     max_output_tokens=self.settings.max_output_tokens,
                 )
                 if not result.ok:
-                    return Reply(ERROR_MESSAGE, error_kind=result.error_kind)
+                    reply = Reply(ERROR_MESSAGE, error_kind=result.error_kind)
+                    return reply
                 answer = result.text
                 sources = [url for url in result.citations if url not in answer]
                 if sources:
                     answer += "\n\nИсточники:\n" + "\n".join(sources)
                 await repository.add_message(owner, "assistant", answer, user.mode)
                 reply = Reply(answer, ok=True, usage=result.usage)
+        except DialogueBusy:
+            reply = Reply(BUSY_MESSAGE, error_kind="busy")
         except LimitExceeded as exc:
             reply = Reply(LIMIT_MESSAGES[exc.kind], error_kind=exc.kind)
         except Exception:
@@ -121,8 +127,8 @@ class Assistant:
                         reply.ok,
                         int((time.monotonic() - started) * 1000),
                         result.usage,
-                        result.cost_usd,
-                        None if reply.ok else result.error_kind or "service",
+                        result.cost_usd if api_started else Decimal("0"),
+                        None if reply.ok else reply.error_kind or result.error_kind or "service",
                     )
                 except Exception:
                     logger.warning("Request accounting incomplete; no request content logged.")

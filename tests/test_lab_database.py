@@ -7,7 +7,7 @@ import pytest
 from app.db import create_pool
 from app.music_profile import MusicProfiles
 from app.operations import MODEL_OPTIONS, OperationsRepository
-from app.repository import Repository, UserSettings
+from app.repository import DialogueBusy, Repository, UserSettings
 from app.retention import purge
 from app.schema import ADMIN_DDL, DDL, migrate
 from tests.test_integration import database as database
@@ -26,6 +26,14 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
         await migrate(pool)
         assert await pool.fetchval("SELECT count(*) FROM schema_migrations") == 3
         repo = Repository(pool)
+        async with repo.locked((1, 1)):
+            with pytest.raises(DialogueBusy):
+                async with Repository(pool).locked((1, 1)):
+                    pytest.fail("A concurrent transaction acquired the same dialogue lock")
+            async with Repository(pool).locked((2, 2)):
+                pass
+        async with repo.locked((1, 1)):
+            pass
         await repo.set_temperature((1, 1), 0.7)
         for owner in [(1, 1), (2, 2)]:
             await repo.get_settings(owner)

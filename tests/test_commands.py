@@ -8,7 +8,7 @@ from aiogram.types import Chat, Message, Update, User
 from app.config import Settings
 from app.handlers.commands import START_MESSAGE, create_router
 from app.operations import MODEL_OPTIONS, OperationsRepository
-from app.repository import Repository, UserSettings
+from app.repository import BUSY_MESSAGE, Repository, UserSettings
 from tests.fakes import MemoryPool
 
 
@@ -34,6 +34,27 @@ async def dispatch(text, pool=None, chat_type="private", **dependencies):
 async def test_start_describes_exact_commands_without_api():
     bot, _ = await dispatch("/start")
     assert bot.session.call_args.args[1].text == START_MESSAGE
+
+
+@pytest.mark.parametrize("text", ["/reset", "/music", "/settings 0.7"])
+async def test_busy_dialogue_commands_leave_history_and_settings_unchanged(text, monkeypatch):
+    pool = MemoryPool()
+    repo = Repository(pool)
+    await repo.get_settings((1, 1))
+    await repo.add_message((1, 1), "user", "saved question", "study")
+    original = pool.fetchval
+
+    async def fetchval(query, *args):
+        if query.startswith("SELECT pg_try_advisory_xact_lock"):
+            return False
+        return await original(query, *args)
+
+    monkeypatch.setattr(pool, "fetchval", fetchval)
+    config = Settings(bot_token="unused", postgres_password="unused", llm_model="model")
+    bot, _ = await dispatch(text, pool, settings=config)
+    assert bot.session.call_args.args[1].text == BUSY_MESSAGE
+    assert await repo.get_settings((1, 1)) == UserSettings()
+    assert len(pool.messages) == 1
 
 
 async def test_switch_mode_clears_history_and_confirms_exact_text():

@@ -197,6 +197,8 @@ class MemoryPool:
 
     async def fetchval(self, query, *args):
         self.calls.append((query, args))
+        if query.startswith("SELECT pg_try_advisory_xact_lock"):
+            return True
         if query.startswith("UPDATE music_profiles"):
             profile = self.profiles.get(args[0])
             if not profile or profile["last_used_at"] < datetime.now(UTC) - timedelta(days=args[1]):

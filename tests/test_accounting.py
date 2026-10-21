@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock
 
 from app.assistant import ERROR_MESSAGE, Assistant
 from app.operations import MODEL_OPTIONS, OperationsRepository
+from app.repository import BUSY_MESSAGE
 from tests.test_assistant import assistant
 from tests.test_llm import response
 
@@ -92,3 +94,23 @@ async def test_commit_failure_after_generation_is_not_reported_as_success(monkey
     event = next(iter(pool.events.values()))
     assert event["status"] == "error"
     assert event["cost_usd"] == Decimal("0.001")
+
+
+async def test_busy_dialogue_does_not_call_api_or_keep_money_reserved(monkeypatch):
+    service, pool, http = assistant()
+    service.operations = OperationsRepository(pool)
+    original = pool.fetchval
+
+    async def fetchval(query, *args):
+        if query.startswith("SELECT pg_try_advisory_xact_lock"):
+            return False
+        return await original(query, *args)
+
+    monkeypatch.setattr(pool, "fetchval", AsyncMock(side_effect=fetchval))
+    reply = await service.respond((1, 1), "question")
+    assert not reply.ok and reply.text == BUSY_MESSAGE
+    http.post.assert_not_called()
+    assert pool.messages == []
+    event = next(iter(pool.events.values()))
+    assert event["error_kind"] == "busy" and event["status"] == "error"
+    assert event["cost_usd"] == event["reserved_usd"] == Decimal("0")

@@ -8,6 +8,13 @@ from app.llm import TEMPERATURES
 from app.prompts import MODES
 
 Owner = tuple[int, int]
+BUSY_MESSAGE = (
+    "Предыдущий запрос ещё выполняется. Дождитесь завершения и повторите команду или сообщение."
+)
+
+
+class DialogueBusy(Exception):
+    """Another transaction is already processing this dialogue."""
 
 
 @dataclass(frozen=True)
@@ -32,10 +39,12 @@ class Repository:
             yield self
             return
         async with self.pool.acquire() as connection, connection.transaction():
-            await connection.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+            acquired = await connection.fetchval(
+                "SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))",
                 f"{owner[0]}:{owner[1]}",
             )
+            if not acquired:
+                raise DialogueBusy
             yield Repository(self.pool, connection, self.retention_days)
 
     async def get_settings(self, owner: Owner) -> UserSettings:
