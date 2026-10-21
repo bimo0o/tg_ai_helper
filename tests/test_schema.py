@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from app.schema import DDL, migrate
+from app.schema import ADMIN_DDL, DDL, migrate
 
 
 def pool_with_version(version):
@@ -22,17 +22,27 @@ async def test_clean_schema_install_is_transactional_and_versioned():
     assert calls[0].args == ("SELECT pg_advisory_xact_lock($1)", 745312001)
     assert calls[2].args == (DDL,)
     assert calls[3].args == ("INSERT INTO schema_migrations (version) VALUES ($1)", 1)
+    assert calls[4].args == (ADMIN_DDL,)
+    assert calls[5].args == ("INSERT INTO schema_migrations (version) VALUES ($1)", 2)
     transaction.__aexit__.assert_awaited_once_with(None, None, None)
 
 
 async def test_second_install_does_not_reapply_ddl():
-    pool, connection, _ = pool_with_version(1)
+    pool, connection, _ = pool_with_version(2)
     await migrate(pool)
     assert all(call.args != (DDL,) for call in connection.execute.call_args_list)
 
 
 async def test_newer_schema_is_rejected_and_transaction_exits_with_error():
-    pool, _, transaction = pool_with_version(2)
+    pool, _, transaction = pool_with_version(3)
     with pytest.raises(RuntimeError, match="newer"):
         await migrate(pool)
     assert transaction.__aexit__.call_args.args[0] is RuntimeError
+
+
+async def test_existing_lab1_database_receives_only_admin_migration():
+    pool, connection, _ = pool_with_version(1)
+    await migrate(pool)
+    calls = connection.execute.call_args_list
+    assert all(call.args != (DDL,) for call in calls)
+    assert calls[2].args == (ADMIN_DDL,)

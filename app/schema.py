@@ -2,7 +2,7 @@
 
 import asyncpg
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 DDL = """
 CREATE TABLE IF NOT EXISTS user_settings (
     chat_id BIGINT NOT NULL,
@@ -25,6 +25,36 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS messages_owner_order ON messages (chat_id, user_id, id);
 """
 
+ADMIN_DDL = """
+CREATE TABLE administrators (
+    user_id BIGINT PRIMARY KEY CHECK (user_id > 0),
+    singleton BOOLEAN NOT NULL DEFAULT TRUE UNIQUE CHECK (singleton),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE application_settings (
+    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    model TEXT NOT NULL
+);
+CREATE TABLE request_events (
+    request_id UUID PRIMARY KEY,
+    chat_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    model TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('started', 'success', 'error')),
+    duration_ms BIGINT CHECK (duration_ms >= 0),
+    prompt_tokens BIGINT CHECK (prompt_tokens >= 0),
+    completion_tokens BIGINT CHECK (completion_tokens >= 0),
+    total_tokens BIGINT CHECK (total_tokens >= 0),
+    cost_usd NUMERIC(20, 10) CHECK (cost_usd >= 0),
+    error_kind TEXT
+);
+CREATE INDEX request_events_created ON request_events (created_at);
+CREATE INDEX request_events_user_created ON request_events (user_id, created_at);
+"""
+MIGRATIONS = {1: DDL, 2: ADMIN_DDL}
+
 
 async def migrate(pool: asyncpg.Pool) -> None:
     async with pool.acquire() as connection, connection.transaction():
@@ -36,8 +66,8 @@ async def migrate(pool: asyncpg.Pool) -> None:
         version = await connection.fetchval("SELECT max(version) FROM schema_migrations")
         if version is not None and version > SCHEMA_VERSION:
             raise RuntimeError("Database schema is newer than this application.")
-        if version is None:
-            await connection.execute(DDL)
-            await connection.execute(
-                "INSERT INTO schema_migrations (version) VALUES ($1)", SCHEMA_VERSION
-            )
+        for target, ddl in MIGRATIONS.items():
+            if target <= (version or 0):
+                continue
+            await connection.execute(ddl)
+            await connection.execute("INSERT INTO schema_migrations (version) VALUES ($1)", target)
