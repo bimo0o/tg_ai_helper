@@ -28,12 +28,17 @@ async def test_startup_wires_commands_before_text_and_closes_single_pool_and_ses
     settings = Settings(bot_token="unused", postgres_password="unused")
     await application.run(settings)
     assert [call.args[0].name for call in dispatcher.include_router.call_args_list] == [
+        "admin",
         "commands",
         "messages",
     ]
     create_pool.assert_awaited_once()
     migration.assert_awaited_once_with(pool)
     assert dispatcher.start_polling.call_args.kwargs["repository"].pool is pool
+    dependencies = dispatcher.start_polling.call_args.kwargs
+    assert dependencies["operations"].pool is pool
+    assert dependencies["assistant"].operations is dependencies["operations"]
+    assert dependencies["admin"].billing.session is llm_session
     pool.close.assert_awaited_once()
     llm_session.close.assert_awaited_once()
     bot.session.close.assert_awaited_once()

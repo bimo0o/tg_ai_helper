@@ -5,14 +5,18 @@ import logging
 from aiogram import Dispatcher
 from aiohttp import ClientSession
 
+from app.admin import AdminService
 from app.assistant import Assistant
+from app.billing import BillingClient
 from app.config import ConfigError, Settings
 from app.db import create_pool
+from app.handlers.admin import create_router as admin_router
 from app.handlers.commands import create_router as commands_router
 from app.handlers.messages import create_router as messages_router
 from app.health import HealthState, start_health_server
 from app.llm import LLMClient
 from app.logging_setup import configure_logging
+from app.operations import OperationsRepository
 from app.repository import Repository
 from app.schema import migrate
 from app.telegram import create_bot
@@ -41,6 +45,7 @@ async def run(settings: Settings) -> None:
         await migrate(state.pool)
         llm_session = ClientSession()
         repository = Repository(state.pool)
+        operations = OperationsRepository(state.pool)
         assistant = Assistant(
             repository,
             LLMClient(
@@ -50,8 +55,20 @@ async def run(settings: Settings) -> None:
                 settings.llm_timeout_seconds,
             ),
             settings,
+            operations,
+        )
+        admin = AdminService(
+            operations,
+            BillingClient(
+                llm_session,
+                settings.llm_base_url,
+                settings.llm_api_key,
+                settings.openrouter_management_key,
+            ),
+            settings.llm_model,
         )
         dispatcher = Dispatcher()
+        dispatcher.include_router(admin_router())
         dispatcher.include_router(commands_router())
         dispatcher.include_router(messages_router())
         runner = await start_health_server(state, settings.health_port)
@@ -62,6 +79,8 @@ async def run(settings: Settings) -> None:
                 repository=repository,
                 assistant=assistant,
                 settings=settings,
+                operations=operations,
+                admin=admin,
                 allowed_updates=dispatcher.resolve_used_update_types(),
                 close_bot_session=False,
             )
