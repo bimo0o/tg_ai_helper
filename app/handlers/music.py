@@ -5,6 +5,7 @@ from aiogram.utils.chat_action import ChatActionSender
 
 from app.assistant import ERROR_MESSAGE, Assistant
 from app.music_profile import FIELDS, MusicProfiles
+from app.rendering import answer_formatted
 from app.text import split_text
 
 PROFILE_HELP = (
@@ -62,8 +63,7 @@ async def search(message: Message, command: CommandObject, assistant: Assistant)
         text = reply.text
     except Exception:
         text = ERROR_MESSAGE
-    for part in split_text(text or ERROR_MESSAGE):
-        await message.answer(part, parse_mode=None)
+    await answer_formatted(message, text or ERROR_MESSAGE)
 
 
 def create_router() -> Router:

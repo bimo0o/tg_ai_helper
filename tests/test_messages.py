@@ -13,6 +13,7 @@ from app.handlers.messages import UNKNOWN_COMMAND
 from app.handlers.messages import create_router as messages_router
 from tests.test_assistant import assistant
 from tests.test_llm import response
+from tests.test_rendering import CheckedHTML
 
 
 async def dispatch(text=None, *, data=None, error=None, chat_type="private", photo=None):
@@ -46,8 +47,11 @@ async def test_long_response_is_sent_in_order_without_any_text_loss():
     methods, _, _, _ = await dispatch("вопрос", data=response(text))
     sent = [method for method in methods if isinstance(method, SendMessage)]
     assert len(sent) > 1
-    assert "".join(method.text for method in sent) == text
-    assert all(method.parse_mode is None and len(method.text) <= 4096 for method in sent)
+    expected = ("<b>текст</b> & слово 🎸\n " * 1000) + "end"
+    visible = [CheckedHTML(method.text).text for method in sent]
+    assert "".join(visible) == expected
+    assert all(method.parse_mode == "HTML" for method in sent)
+    assert all(len(part.encode("utf-16-le")) // 2 <= 4096 for part in visible)
 
 
 async def test_error_returns_exact_safe_text():

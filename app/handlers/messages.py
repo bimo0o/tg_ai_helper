@@ -5,7 +5,7 @@ from aiogram.types import Message
 from aiogram.utils.chat_action import ChatActionSender
 
 from app.assistant import ERROR_MESSAGE, Assistant
-from app.text import split_text
+from app.rendering import answer_formatted
 
 logger = logging.getLogger(__name__)
 UNKNOWN_COMMAND = "Неизвестная команда. Список команд: /start"
@@ -25,8 +25,7 @@ async def reply_to_text(message: Message, assistant: Assistant) -> None:
     except Exception:
         logger.warning("Message processing failed; no request content logged.")
         text = ERROR_MESSAGE
-    for part in split_text(text):
-        await message.answer(part, parse_mode=None)
+    await answer_formatted(message, text)
 
 
 def create_router() -> Router:
