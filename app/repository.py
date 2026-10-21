@@ -17,9 +17,10 @@ class UserSettings:
 
 
 class Repository:
-    def __init__(self, pool: asyncpg.Pool, connection=None):
+    def __init__(self, pool: asyncpg.Pool, connection=None, retention_days=30):
         self.pool = pool
         self.connection = connection
+        self.retention_days = retention_days
 
     @property
     def db(self):
@@ -35,7 +36,7 @@ class Repository:
                 "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
                 f"{owner[0]}:{owner[1]}",
             )
-            yield Repository(self.pool, connection)
+            yield Repository(self.pool, connection, self.retention_days)
 
     async def get_settings(self, owner: Owner) -> UserSettings:
         await self.db.execute(
@@ -66,10 +67,12 @@ class Repository:
     ) -> list[dict[str, str]]:
         rows = await self.db.fetch(
             "SELECT role, content FROM messages WHERE chat_id=$1 AND user_id=$2 "
-            "AND mode=$3 ORDER BY id DESC LIMIT $4",
+            "AND mode=$3 AND created_at >= now() - $5::integer * interval '1 day' "
+            "ORDER BY id DESC LIMIT $4",
             *owner,
             mode,
             max(0, limit_messages) + 2,
+            self.retention_days,
         )
         history = [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
         return trim_history(history, limit_messages, limit_chars)

@@ -88,7 +88,13 @@ class MemoryPool:
             self.settings.setdefault(owner, {"mode": "study", "temperature": 0.3})
         elif query.startswith("INSERT INTO messages"):
             self.messages.append(
-                {"owner": owner, "role": args[2], "content": args[3], "mode": args[4]}
+                {
+                    "owner": owner,
+                    "role": args[2],
+                    "content": args[3],
+                    "mode": args[4],
+                    "created_at": datetime.now(UTC),
+                }
             )
         elif query.startswith("DELETE FROM messages"):
             self.messages = [row for row in self.messages if row["owner"] != owner]
@@ -168,7 +174,9 @@ class MemoryPool:
         return [
             dict(row)
             for row in reversed(self.messages)
-            if row["owner"] == args[:2] and row["mode"] == args[2]
+            if row["owner"] == args[:2]
+            and row["mode"] == args[2]
+            and row["created_at"] >= datetime.now(UTC) - timedelta(days=args[4])
         ][: args[3]]
 
     async def fetchval(self, query, *args):

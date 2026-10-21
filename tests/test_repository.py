@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from app.repository import Repository, UserSettings
@@ -61,3 +63,15 @@ async def test_invalid_settings_are_rejected_before_sql():
     with pytest.raises(ValueError):
         await repo.set_mode((1, 1), "unknown")
     assert pool.calls == []
+
+
+async def test_expired_messages_never_return_to_context_before_cleanup():
+    pool = MemoryPool()
+    repository = Repository(pool, retention_days=30)
+    await seed(repository, (1, 1))
+    for row in pool.messages:
+        row["created_at"] = datetime.now(UTC) - timedelta(days=31)
+    await seed(repository, (1, 1))
+    history = await repository.get_history((1, 1), "study", 40, 8000)
+    assert len(history) == 2
+    assert len(pool.messages) == 4
