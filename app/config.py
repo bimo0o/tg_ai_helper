@@ -48,7 +48,7 @@ class Settings:
                 or url.fragment
             ):
                 raise ValueError
-            url.port
+            _ = url.port
         except ValueError:
             raise ConfigError("LLM_BASE_URL: нужен HTTPS URL без учётных данных.") from None
         if not 2 <= self.history_max_messages <= 10000:
