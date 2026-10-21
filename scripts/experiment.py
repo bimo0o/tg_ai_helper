@@ -85,6 +85,8 @@ async def run_experiment(settings: Settings, directory: Path) -> int:
         "instructions": instruction_messages("study"),
         "history_max_messages": settings.history_max_messages,
         "history_max_chars": settings.history_max_chars,
+        "max_output_tokens": settings.max_output_tokens,
+        "timeout_seconds": settings.llm_timeout_seconds,
         "web_search": False,
         "criteria": (
             "Three numbered lines; correctness, clarity and completeness assessed manually."
