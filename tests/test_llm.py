@@ -1,4 +1,5 @@
 import asyncio
+from decimal import Decimal
 from unittest.mock import AsyncMock, Mock
 
 import aiohttp
@@ -88,3 +89,19 @@ async def test_cancellation_propagates():
     llm, _ = client(error=asyncio.CancelledError())
     with pytest.raises(asyncio.CancelledError):
         await llm.generate([], "model", 0.3)
+
+
+@pytest.mark.parametrize("finish", ["stop", "length"])
+def test_actual_provider_cost_is_preserved_even_for_incomplete_answer(finish):
+    data = response(finish=finish)
+    data["usage"]["cost"] = 0.001234
+    result = parse_response(data)
+    assert result.cost_usd == Decimal("0.001234")
+    assert result.usage == {"prompt_tokens": 12}
+
+
+@pytest.mark.parametrize("cost", [None, -1, True, "nan", "invalid"])
+def test_missing_or_invalid_cost_remains_unknown(cost):
+    data = response()
+    data["usage"]["cost"] = cost
+    assert parse_response(data).cost_usd is None

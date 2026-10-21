@@ -3,9 +3,12 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
+from decimal import Decimal
 from urllib.parse import urlsplit
 
 import aiohttp
+
+from app.billing import decimal_value
 
 logger = logging.getLogger(__name__)
 TEMPERATURES = (0.0, 0.3, 0.7, 1.0)
@@ -18,29 +21,34 @@ class Generation:
     error_kind: str | None = None
     usage: dict[str, int] = field(default_factory=dict)
     citations: tuple[str, ...] = ()
+    cost_usd: Decimal | None = None
 
 
 def parse_response(data: object) -> Generation:
+    usage = {}
+    cost = None
     try:
         if not isinstance(data, dict):
             raise ValueError
+        raw_usage = data.get("usage") or {}
+        if isinstance(raw_usage, dict):
+            usage = {
+                key: raw_usage[key]
+                for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+                if type(raw_usage.get(key)) is int and raw_usage[key] >= 0
+            }
+            cost = decimal_value(raw_usage.get("cost"))
+            if cost is not None and cost < 0:
+                cost = None
         choice = data["choices"][0]
         if choice.get("finish_reason") != "stop":
-            return Generation(False, error_kind="incomplete")
+            return Generation(False, error_kind="incomplete", usage=usage, cost_usd=cost)
         message = choice["message"]
         text = message["content"]
         if not isinstance(text, str):
             raise ValueError
         if not text.strip():
-            return Generation(False, error_kind="empty")
-        raw_usage = data.get("usage") or {}
-        usage = {
-            key: raw_usage[key]
-            for key in ("prompt_tokens", "completion_tokens", "total_tokens")
-            if isinstance(raw_usage, dict)
-            and type(raw_usage.get(key)) is int
-            and raw_usage[key] >= 0
-        }
+            return Generation(False, error_kind="empty", usage=usage, cost_usd=cost)
         citations = []
         for annotation in message.get("annotations") or []:
             if not isinstance(annotation, dict):
@@ -59,9 +67,9 @@ def parse_response(data: object) -> Generation:
                 and url not in citations
             ):
                 citations.append(url)
-        return Generation(True, text=text, usage=usage, citations=tuple(citations))
+        return Generation(True, text=text, usage=usage, citations=tuple(citations), cost_usd=cost)
     except (KeyError, IndexError, TypeError, ValueError, AttributeError):
-        return Generation(False, error_kind="invalid")
+        return Generation(False, error_kind="invalid", usage=usage, cost_usd=cost)
 
 
 class LLMClient:
