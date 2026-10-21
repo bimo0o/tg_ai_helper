@@ -25,6 +25,38 @@ class Settings:
     postgres_user: str = "bot"
     log_level: str = "INFO"
     health_port: int = 8080
+    llm_base_url: str = field(default="", repr=False)
+    llm_api_key: str = field(default="", repr=False)
+    llm_model: str = ""
+    llm_timeout_seconds: int = 30
+    history_max_messages: int = 40
+    history_max_chars: int = 8000
+    music_web_search: bool = True
+
+    def validate_llm(self) -> None:
+        for name in ("llm_base_url", "llm_api_key", "llm_model"):
+            if not getattr(self, name).strip():
+                raise ConfigError(f"{name.upper()}: обязательная настройка не задана.")
+        try:
+            url = urlsplit(self.llm_base_url)
+            if (
+                url.scheme != "https"
+                or not url.hostname
+                or url.username
+                or url.password
+                or url.query
+                or url.fragment
+            ):
+                raise ValueError
+            url.port
+        except ValueError:
+            raise ConfigError("LLM_BASE_URL: нужен HTTPS URL без учётных данных.") from None
+        if not 2 <= self.history_max_messages <= 10000:
+            raise ConfigError("HISTORY_MAX_MESSAGES: нужно число от 2 до 10000.")
+        if not 1 <= self.history_max_chars <= 1000000:
+            raise ConfigError("HISTORY_MAX_CHARS: нужно число от 1 до 1000000.")
+        if not 1 <= self.llm_timeout_seconds <= 120:
+            raise ConfigError("LLM_TIMEOUT_SECONDS: нужно число от 1 до 120.")
 
     @classmethod
     def load(
@@ -46,6 +78,16 @@ class Settings:
                 return result
             except ValueError:
                 raise ConfigError(f"{key}: нужен номер порта от 1 до 65535.") from None
+
+        def integer(key: str, default: str) -> int:
+            try:
+                return int(value(key, default))
+            except ValueError:
+                raise ConfigError(f"{key}: нужно целое число.") from None
+
+        web_search = value("MUSIC_WEB_SEARCH", "true").lower()
+        if web_search not in {"true", "false"}:
+            raise ConfigError("MUSIC_WEB_SEARCH: используйте true или false.")
 
         token = value("BOT_TOKEN")
         try:
@@ -86,4 +128,11 @@ class Settings:
             postgres_user=value("POSTGRES_USER", "bot"),
             log_level=level,
             health_port=port("HEALTH_PORT", "8080"),
+            llm_base_url=value("LLM_BASE_URL"),
+            llm_api_key=value("LLM_API_KEY"),
+            llm_model=value("LLM_MODEL"),
+            llm_timeout_seconds=integer("LLM_TIMEOUT_SECONDS", "30"),
+            history_max_messages=integer("HISTORY_MAX_MESSAGES", "40"),
+            history_max_chars=integer("HISTORY_MAX_CHARS", "8000"),
+            music_web_search=web_search == "true",
         )
