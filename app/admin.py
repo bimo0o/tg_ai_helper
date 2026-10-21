@@ -50,9 +50,6 @@ class AdminService:
         since = now - timedelta(days=days) if days else datetime(1970, 1, 1, tzinfo=UTC)
         since = max(since, now - timedelta(days=self.settings.statistics_retention_days))
         summary = await self.operations.summary(since)
-        today = await self.operations.summary(
-            now.replace(hour=0, minute=0, second=0, microsecond=0)
-        )
         users = await self.operations.user_stats(since, offset)
         model = await self.operations.get_model(self.default_model)
         budget = await self.billing.get_budget()
@@ -92,17 +89,11 @@ class AdminService:
         lines.append(f"Баланс аккаунта: {money(budget.account_balance)}")
         if budget.account_balance is None:
             lines.append("Для общего баланса нужен management key и доступность API.")
-        reserved = today["reserved_usd"] or 0
         lines.extend(
             [
-                "\nКонтроль расходов · сутки UTC:",
-                f"Занято с резервами: {money(reserved)} / {money(self.settings.daily_budget_usd)}",
-                "Свободно для допуска: " + money(max(0, self.settings.daily_budget_usd - reserved)),
-                f"На пользователя: {money(self.settings.user_daily_budget_usd)} в сутки; "
-                f"резерв запроса: {money(self.settings.request_reserve_usd)}",
-                f"Квоты: {self.settings.user_requests_per_minute}/мин, "
-                f"{self.settings.user_requests_per_day}/сутки; ответ до "
-                f"{self.settings.max_output_tokens} токенов.",
+                "\nВнутренние лимиты бюджета и частоты запросов отключены.",
+                "Неизвестная стоимость не включена в учтённые расходы; резервы не создаются.",
+                f"Ответ до {self.settings.max_output_tokens} токенов.",
             ]
         )
         lines.append(f"\nПользователи · страница {offset // 10 + 1}:")

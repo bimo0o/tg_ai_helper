@@ -1,5 +1,4 @@
 from dataclasses import replace
-from decimal import Decimal
 
 import pytest
 
@@ -54,10 +53,8 @@ def test_context_limits_are_validated(name, value):
         replace(configured(), **{name: value}).validate_llm()
 
 
-def test_cost_and_retention_defaults():
+def test_retention_defaults():
     settings = configured()
-    assert settings.daily_budget_usd == Decimal("2")
-    assert settings.user_daily_budget_usd == Decimal("0.20")
     assert (
         settings.history_retention_days,
         settings.statistics_retention_days,
@@ -68,12 +65,26 @@ def test_cost_and_retention_defaults():
 @pytest.mark.parametrize(
     "changes",
     [
-        {"daily_budget_usd": Decimal("NaN")},
-        {"request_reserve_usd": Decimal("1")},
         {"history_retention_days": 0},
         {"max_output_tokens": 0},
     ],
 )
-def test_invalid_cost_and_retention_policy_is_rejected(changes):
+def test_invalid_output_and_retention_policy_is_rejected(changes):
     with pytest.raises(ConfigError):
         replace(configured(), **changes).validate_llm()
+
+
+def test_legacy_budget_and_rate_env_settings_are_ignored(tmp_path):
+    env = tmp_path / "legacy.env"
+    env.write_text(
+        "BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk\n"
+        "POSTGRES_PASSWORD=example-only\n"
+        "DAILY_BUDGET_USD=invalid\n"
+        "USER_DAILY_BUDGET_USD=invalid\n"
+        "REQUEST_RESERVE_USD=invalid\n"
+        "USER_REQUESTS_PER_MINUTE=invalid\n"
+        "USER_REQUESTS_PER_DAY=invalid\n",
+        encoding="utf-8",
+    )
+    settings = Settings.load(env, environ={})
+    assert settings.max_output_tokens == 1500

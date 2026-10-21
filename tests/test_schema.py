@@ -8,6 +8,7 @@ from app.schema import (
     FLASH_DDL,
     GENERAL_MODES_DDL,
     MODEL_DDL,
+    NO_LIMITS_DDL,
     POLICY_DDL,
     SCHEMA_VERSION,
     migrate,
@@ -92,4 +93,14 @@ async def test_flash_database_adds_general_modes_without_deleting_data():
     assert connection.execute.call_args_list[3].args == (
         "INSERT INTO schema_migrations (version) VALUES ($1)",
         6,
+    )
+
+
+async def test_general_database_clears_old_reservations_without_deleting_statistics():
+    pool, connection, _ = pool_with_version(6)
+    await migrate(pool)
+    assert connection.execute.call_args_list[2].args == (NO_LIMITS_DDL,)
+    assert connection.execute.call_args_list[3].args == (
+        "INSERT INTO schema_migrations (version) VALUES ($1)",
+        7,
     )

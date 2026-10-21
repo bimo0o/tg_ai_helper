@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
 MODEL_OPTIONS = {
@@ -7,12 +7,6 @@ MODEL_OPTIONS = {
     "deepseek": "deepseek/deepseek-v4.1-flash",
 }
 DEFAULT_MODEL = MODEL_OPTIONS["deepseek"]
-
-
-class LimitExceeded(Exception):
-    def __init__(self, kind: str):
-        super().__init__(kind)
-        self.kind = kind
 
 
 class OperationsRepository:
@@ -56,45 +50,16 @@ class OperationsRepository:
         )
         return result == "INSERT 0 1"
 
-    async def start_request(self, owner: tuple[int, int], model: str, limits=None) -> uuid.UUID:
-        if limits is None:
-            return await self._insert_request(self.pool, owner, model, Decimal("0"))
-        async with self.pool.acquire() as connection, connection.transaction():
-            await connection.execute("SELECT pg_advisory_xact_lock($1)", 745312002)
-            now = datetime.now(UTC)
-            day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            usage = await connection.fetchrow(
-                "SELECT COALESCE(sum(reserved_usd) FILTER (WHERE created_at >= $2), 0) "
-                "AS global_spend, COALESCE(sum(reserved_usd) FILTER "
-                "(WHERE user_id=$1 AND created_at >= $2), 0) AS user_spend, "
-                "count(*) FILTER (WHERE user_id=$1 AND created_at >= $2) AS day_count, "
-                "count(*) FILTER (WHERE user_id=$1 AND created_at >= $3) AS minute_count "
-                "FROM request_events WHERE created_at >= LEAST($2, $3)",
-                owner[1],
-                day,
-                now - timedelta(minutes=1),
-            )
-            if usage["minute_count"] >= limits.user_requests_per_minute:
-                raise LimitExceeded("rate")
-            if usage["day_count"] >= limits.user_requests_per_day:
-                raise LimitExceeded("daily_requests")
-            reserve = limits.request_reserve_usd
-            if usage["global_spend"] + reserve > limits.daily_budget_usd:
-                raise LimitExceeded("global_budget")
-            if usage["user_spend"] + reserve > limits.user_daily_budget_usd:
-                raise LimitExceeded("user_budget")
-            return await self._insert_request(connection, owner, model, reserve)
-
-    async def _insert_request(self, connection, owner, model, reserve) -> uuid.UUID:
+    async def start_request(self, owner: tuple[int, int], model: str) -> uuid.UUID:
         request_id = uuid.uuid4()
-        await connection.execute(
+        await self.pool.execute(
             "INSERT INTO request_events "
             "(request_id, chat_id, user_id, model, mode, status, reserved_usd) "
             "VALUES ($1, $2, $3, $4, 'unknown', 'started', $5)",
             request_id,
             *owner,
             model,
-            reserve,
+            Decimal("0"),
         )
         return request_id
 
@@ -111,7 +76,7 @@ class OperationsRepository:
         await self.pool.execute(
             "UPDATE request_events SET mode=$2, status=$3, duration_ms=$4, "
             "prompt_tokens=$5, completion_tokens=$6, total_tokens=$7, cost_usd=$8, error_kind=$9, "
-            "reserved_usd=COALESCE($8, reserved_usd) "
+            "reserved_usd=0 "
             "WHERE request_id=$1",
             request_id,
             mode,
@@ -131,7 +96,6 @@ class OperationsRepository:
             "count(*) FILTER (WHERE status='error') AS errors, "
             "count(*) FILTER (WHERE status='started') AS pending, "
             "count(cost_usd) AS priced, sum(cost_usd) AS cost_usd, "
-            "sum(reserved_usd) AS reserved_usd, "
             "sum(prompt_tokens) AS prompt_tokens, sum(completion_tokens) AS completion_tokens, "
             "avg(duration_ms) AS average_ms FROM request_events WHERE created_at >= $1",
             since,

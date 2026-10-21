@@ -89,15 +89,15 @@ async def test_model_button_changes_actual_next_generation_and_reset_keeps_all_u
     await send(2, "/reset")
     assert await profiles.get(2) == {"daw": "Ableton Live"}
     await send(2, "third music question")
-    await send(2, "rate-limited question")
+    await send(2, "another question")
     sent = [
         call.args[1] for call in bot.session.call_args_list if isinstance(call.args[1], SendMessage)
     ]
-    assert sent[-1].text == "Слишком много запросов. Подождите минуту и попробуйте снова."
-    assert len(pool.events) == 4 and {row["user_id"] for row in pool.events.values()} == {1, 2}
+    assert sent[-1].text == "Ответ"
+    assert len(pool.events) == 5 and {row["user_id"] for row in pool.events.values()} == {1, 2}
     await send(10, "/admin")
     sent = [
         call.args[1] for call in bot.session.call_args_list if isinstance(call.args[1], SendMessage)
     ]
-    assert "Запросов к LLM: 4; пользователей: 2" in sent[-1].text
-    assert http.post.call_count == 4
+    assert "Запросов к LLM: 5; пользователей: 2" in sent[-1].text
+    assert http.post.call_count == 5

@@ -2,7 +2,7 @@
 
 import asyncpg
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 DDL = """
 CREATE TABLE IF NOT EXISTS user_settings (
     chat_id BIGINT NOT NULL,
@@ -83,6 +83,9 @@ ALTER TABLE messages DROP CONSTRAINT messages_mode_check;
 ALTER TABLE messages ADD CONSTRAINT messages_mode_check
     CHECK (mode IN ('study', 'translate', 'music', 'chat', 'web'));
 """
+NO_LIMITS_DDL = """
+UPDATE request_events SET reserved_usd=0 WHERE reserved_usd <> 0;
+"""
 MIGRATIONS = {
     1: DDL,
     2: ADMIN_DDL,
@@ -90,6 +93,7 @@ MIGRATIONS = {
     4: MODEL_DDL,
     5: FLASH_DDL,
     6: GENERAL_MODES_DDL,
+    7: NO_LIMITS_DDL,
 }
 
 

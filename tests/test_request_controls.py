@@ -1,19 +1,18 @@
 from dataclasses import replace
 from decimal import Decimal
 
-from app.assistant import LIMIT_MESSAGES
 from app.operations import OperationsRepository
 from tests.test_assistant import assistant
 
 
-async def test_user_budget_rejects_before_second_api_call():
+async def test_old_unknown_reservations_do_not_block_new_api_calls():
     service, pool, http = assistant()
     service.operations = OperationsRepository(pool)
-    service.settings = replace(service.settings, user_daily_budget_usd=Decimal("0.05"))
     assert (await service.respond((1, 1), "one")).ok
+    next(iter(pool.events.values()))["reserved_usd"] = Decimal("2")
     reply = await service.respond((1, 1), "two")
-    assert reply.text == LIMIT_MESSAGES["user_budget"]
-    assert http.post.call_count == 1 and len(pool.events) == 1
+    assert reply.ok
+    assert http.post.call_count == 2 and len(pool.events) == 2
 
 
 async def test_music_does_not_search_until_explicitly_requested():

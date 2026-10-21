@@ -94,8 +94,7 @@ class MemoryPool:
                     strict=True,
                 )
             )
-            if args[7] is not None:
-                self.events[args[0]]["reserved_usd"] = args[7]
+            self.events[args[0]]["reserved_usd"] = 0
             return
         owner = args[:2]
         if query.startswith("SELECT pg_advisory"):
@@ -153,7 +152,7 @@ class MemoryPool:
                 "pending": sum(row["status"] == "started" for row in events),
                 "priced": len(priced),
                 "reserved_usd": sum(row["reserved_usd"] for row in events),
-                "cost_usd": sum(row["cost_usd"] for row in priced),
+                "cost_usd": sum(row["cost_usd"] for row in priced) if priced else None,
                 "prompt_tokens": sum(row["prompt_tokens"] or 0 for row in events),
                 "completion_tokens": sum(row["completion_tokens"] or 0 for row in events),
                 "average_ms": sum(durations) / len(durations) if durations else None,

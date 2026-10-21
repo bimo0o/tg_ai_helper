@@ -31,8 +31,9 @@ async def test_dashboard_reports_pagination_cost_coverage_and_db_model():
     assert "Стоимость известна для 12 из 12" in first.text
     assert "Остаток лимита ключа: лимит не задан" in first.text
     assert "Баланс аккаунта: недоступно" in first.text
-    assert "Контроль расходов · сутки UTC:" in first.text
-    assert "$2.000000" in first.text and "$0.200000" in first.text
+    assert "Внутренние лимиты бюджета и частоты запросов отключены." in first.text
+    assert "Занято с резервами" not in first.text
+    assert "Свободно для допуска" not in first.text
     assert "ID 11:" not in first.text
     second = await service.overview(10, "all", 10)
     assert not second.has_next and "ID 11:" in second.text

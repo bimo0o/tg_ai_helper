@@ -1,66 +1,39 @@
-from dataclasses import replace
+from datetime import UTC, datetime
 from decimal import Decimal
 
-import pytest
-
-from app.config import Settings
-from app.operations import LimitExceeded, OperationsRepository
+from app.operations import OperationsRepository
 from tests.fakes import MemoryPool
 
 
-def limits(**changes):
-    return replace(Settings(bot_token="unused", postgres_password="unused"), **changes)
-
-
-async def test_reservation_blocks_user_before_api_budget_is_exhausted():
+async def test_many_requests_are_recorded_without_local_budget_or_rate_checks():
     pool = MemoryPool()
     repo = OperationsRepository(pool)
-    policy = limits(user_daily_budget_usd=Decimal("0.05"))
-    await repo.start_request((1, 1), "model", policy)
-    with pytest.raises(LimitExceeded, match="user_budget"):
-        await repo.start_request((1, 1), "model", policy)
-    assert len(pool.events) == 1
-    await repo.start_request((2, 2), "model", policy)
-    assert len(pool.events) == 2
+    for _ in range(60):
+        await repo.start_request((1, 1), "model")
+    assert len(pool.events) == 60
+    assert all(row["reserved_usd"] == 0 for row in pool.events.values())
+    assert all("pg_advisory" not in query for query, _ in pool.calls)
 
 
-async def test_global_reservation_and_release_of_known_cost():
+async def test_unknown_cost_is_excluded_from_spending_but_remains_unknown():
     pool = MemoryPool()
     repo = OperationsRepository(pool)
-    policy = limits(
-        daily_budget_usd=Decimal("0.11"),
-        user_daily_budget_usd=Decimal("0.11"),
-        user_requests_per_minute=10,
-    )
-    first = await repo.start_request((1, 1), "model", policy)
-    await repo.start_request((2, 2), "model", policy)
-    with pytest.raises(LimitExceeded, match="global_budget"):
-        await repo.start_request((3, 3), "model", policy)
-    await repo.finish_request(first, "study", True, 10, {}, Decimal("0.01"), None)
-    await repo.start_request((3, 3), "model", policy)
-    assert sum(row["reserved_usd"] for row in pool.events.values()) == Decimal("0.11")
-
-
-async def test_unknown_cost_keeps_reserve_and_rate_limits_are_enforced():
-    pool = MemoryPool()
-    repo = OperationsRepository(pool)
-    policy = limits(user_requests_per_minute=1)
-    event = await repo.start_request((1, 1), "model", policy)
+    event = await repo.start_request((1, 1), "model")
+    pool.events[event]["reserved_usd"] = Decimal("0.05")
     await repo.finish_request(event, "study", False, 30000, {}, None, "timeout")
-    assert pool.events[event]["reserved_usd"] == Decimal("0.05")
-    with pytest.raises(LimitExceeded, match="rate"):
-        await repo.start_request((1, 1), "model", policy)
-    assert any(
-        query == "SELECT pg_advisory_xact_lock($1)" and args == (745312002,)
-        for query, args in pool.calls
-    )
+    assert pool.events[event]["reserved_usd"] == 0
+    assert pool.events[event]["cost_usd"] is None
+    summary = await repo.summary(datetime(2000, 1, 1, tzinfo=UTC))
+    assert summary["priced"] == 0 and summary["cost_usd"] is None
 
 
-async def test_daily_request_quota_is_independent_of_low_cost():
+async def test_reported_six_request_case_no_longer_blocks_seventh_request():
     pool = MemoryPool()
     repo = OperationsRepository(pool)
-    policy = limits(user_requests_per_day=1, user_requests_per_minute=10)
-    event = await repo.start_request((1, 1), "model", policy)
-    await repo.finish_request(event, "study", True, 10, {}, Decimal("0"), None)
-    with pytest.raises(LimitExceeded, match="daily_requests"):
-        await repo.start_request((1, 1), "model", policy)
+    for cost in [None, None, None, Decimal("0"), Decimal("0.000956"), Decimal("0.001")]:
+        event = await repo.start_request((1, 1), "model")
+        await repo.finish_request(event, "music", cost is not None, 100, {}, cost, None)
+    summary = await repo.summary(datetime(2000, 1, 1, tzinfo=UTC))
+    assert summary["priced"] == 3 and summary["cost_usd"] == Decimal("0.001956")
+    await repo.start_request((1, 1), "model")
+    assert len(pool.events) == 7

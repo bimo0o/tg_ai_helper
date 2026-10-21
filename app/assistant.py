@@ -6,7 +6,7 @@ from decimal import Decimal
 from app.config import Settings
 from app.llm import Generation, LLMClient
 from app.music_profile import MusicProfiles
-from app.operations import LimitExceeded, OperationsRepository
+from app.operations import OperationsRepository
 from app.prompts import instruction_messages, profile_messages
 from app.repository import BUSY_MESSAGE, DialogueBusy, Owner, Repository
 
@@ -32,14 +32,6 @@ def generation_error(result: Generation) -> str:
     if result.error_kind == "incomplete":
         return "Модель не вернула завершённый текстовый ответ. Попробуйте переформулировать вопрос."
     return ERROR_MESSAGE
-
-
-LIMIT_MESSAGES = {
-    "rate": "Слишком много запросов. Подождите минуту и попробуйте снова.",
-    "daily_requests": "Суточный лимит запросов исчерпан. Попробуйте после 00:00 UTC.",
-    "user_budget": "Ваш дневной бюджет исчерпан или зарезервирован. Попробуйте позже.",
-    "global_budget": "Дневной бюджет бота исчерпан или зарезервирован. Попробуйте позже.",
-}
 
 
 @dataclass(frozen=True)
@@ -92,7 +84,7 @@ class Assistant:
             model = self.settings.llm_model
             if self.operations is not None:
                 model = await self.operations.get_model(model)
-                event = await self.operations.start_request(owner, model, self.settings)
+                event = await self.operations.start_request(owner, model)
             async with self.repository.locked(owner) as repository:
                 user = await repository.get_settings(owner)
                 mode = "web" if use_web and user.mode != "music" else user.mode
@@ -138,8 +130,6 @@ class Assistant:
                 reply = Reply(answer, ok=True, usage=result.usage)
         except DialogueBusy:
             reply = Reply(BUSY_MESSAGE, error_kind="busy")
-        except LimitExceeded as exc:
-            reply = Reply(LIMIT_MESSAGES[exc.kind], error_kind=exc.kind)
         except Exception:
             reply = Reply(ERROR_MESSAGE, error_kind="service")
             logger.warning("Dialogue processing failed; no request content logged.")

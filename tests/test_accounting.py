@@ -76,16 +76,11 @@ async def test_commit_failure_after_generation_is_not_reported_as_success(monkey
     data["usage"]["cost"] = 0.001
     service, pool, _ = assistant(data)
     service.operations = OperationsRepository(pool)
-    transactions = 0
 
     @asynccontextmanager
     async def transaction():
-        nonlocal transactions
-        transactions += 1
-        current = transactions
         yield pool
-        if current == 2:
-            raise ConnectionError("example commit failure")
+        raise ConnectionError("example commit failure")
 
     monkeypatch.setattr(pool, "transaction", transaction)
     reply = await service.respond((1, 1), "question")

@@ -3,7 +3,6 @@
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -34,12 +33,7 @@ class Settings:
     history_max_messages: int = 40
     history_max_chars: int = 8000
     music_web_search: bool = True
-    daily_budget_usd: Decimal = Decimal("2")
-    user_daily_budget_usd: Decimal = Decimal("0.20")
-    request_reserve_usd: Decimal = Decimal("0.05")
     max_output_tokens: int = 1500
-    user_requests_per_minute: int = 3
-    user_requests_per_day: int = 50
     history_retention_days: int = 30
     statistics_retention_days: int = 90
     music_profile_retention_days: int = 180
@@ -68,19 +62,9 @@ class Settings:
             raise ConfigError("HISTORY_MAX_CHARS: нужно число от 1 до 1000000.")
         if not 1 <= self.llm_timeout_seconds <= 120:
             raise ConfigError("LLM_TIMEOUT_SECONDS: нужно число от 1 до 120.")
-        for name in ("daily_budget_usd", "user_daily_budget_usd", "request_reserve_usd"):
-            amount = getattr(self, name)
-            if not amount.is_finite() or amount <= 0:
-                raise ConfigError(f"{name.upper()}: нужна положительная сумма в USD.")
-        if not self.request_reserve_usd <= self.user_daily_budget_usd <= self.daily_budget_usd:
-            raise ConfigError(
-                "Бюджет пользователя должен быть между резервом запроса и общим бюджетом."
-            )
         if not 64 <= self.max_output_tokens <= 8192:
             raise ConfigError("MAX_OUTPUT_TOKENS: нужно число от 64 до 8192.")
         for name in (
-            "user_requests_per_minute",
-            "user_requests_per_day",
             "history_retention_days",
             "statistics_retention_days",
             "music_profile_retention_days",
@@ -114,15 +98,6 @@ class Settings:
                 return int(value(key, default))
             except ValueError:
                 raise ConfigError(f"{key}: нужно целое число.") from None
-
-        def amount(key: str, default: str) -> Decimal:
-            try:
-                result = Decimal(value(key, default))
-                if not result.is_finite() or result <= 0:
-                    raise InvalidOperation
-                return result
-            except InvalidOperation:
-                raise ConfigError(f"{key}: нужна положительная сумма в USD.") from None
 
         web_search = value("MUSIC_WEB_SEARCH", "true").lower()
         if web_search not in {"true", "false"}:
@@ -175,12 +150,7 @@ class Settings:
             history_max_messages=integer("HISTORY_MAX_MESSAGES", "40"),
             history_max_chars=integer("HISTORY_MAX_CHARS", "8000"),
             music_web_search=web_search == "true",
-            daily_budget_usd=amount("DAILY_BUDGET_USD", "2"),
-            user_daily_budget_usd=amount("USER_DAILY_BUDGET_USD", "0.20"),
-            request_reserve_usd=amount("REQUEST_RESERVE_USD", "0.05"),
             max_output_tokens=integer("MAX_OUTPUT_TOKENS", "1500"),
-            user_requests_per_minute=integer("USER_REQUESTS_PER_MINUTE", "3"),
-            user_requests_per_day=integer("USER_REQUESTS_PER_DAY", "50"),
             history_retention_days=integer("HISTORY_RETENTION_DAYS", "30"),
             statistics_retention_days=integer("STATISTICS_RETENTION_DAYS", "90"),
             music_profile_retention_days=integer("MUSIC_PROFILE_RETENTION_DAYS", "180"),

@@ -61,12 +61,12 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
         await operations.assign_owner(10)
         assert await operations.set_model(10, "qwen")
         assert await operations.get_model("fallback") == MODEL_OPTIONS["qwen"]
-        event = await operations.start_request((2, 2), MODEL_OPTIONS["qwen"], settings)
+        event = await operations.start_request((2, 2), MODEL_OPTIONS["qwen"])
         await operations.finish_request(event, "study", True, 10, {}, Decimal("0.01"), None)
         await repo.clear_history((2, 2))
         stats = await operations.summary(datetime(1970, 1, 1, tzinfo=UTC))
         assert stats["requests"] == 1 and stats["cost_usd"] == Decimal("0.01")
-        assert stats["reserved_usd"] == Decimal("0.01")
+        assert stats["cost_usd"] == Decimal("0.01")
         profiles = MusicProfiles(restored_pool)
         await profiles.set_field(2, "daw", "Ableton Live")
         assert await profiles.get(2) == {"daw": "Ableton Live"}
@@ -106,8 +106,6 @@ async def test_budget_migration_accounts_for_older_known_and_unknown_costs(datab
         await pool.execute("UPDATE application_settings SET model=$1", MODEL_OPTIONS["qwen"])
         await migrate(pool)
         assert await OperationsRepository(pool).get_model("") == MODEL_OPTIONS["qwen"]
-        assert await pool.fetchval("SELECT sum(reserved_usd) FROM request_events") == Decimal(
-            "0.08"
-        )
+        assert await pool.fetchval("SELECT sum(reserved_usd) FROM request_events") == Decimal("0")
     finally:
         await pool.close()

@@ -3,7 +3,6 @@ from decimal import Decimal
 
 import pytest
 
-from app.assistant import LIMIT_MESSAGES
 from app.music_profile import MusicProfiles
 from app.operations import OperationsRepository
 from app.prompts import SYSTEM_PROMPTS
@@ -74,14 +73,14 @@ async def test_disabled_web_mode_never_calls_api_and_releases_reservation():
     assert event["reserved_usd"] == event["cost_usd"] == Decimal("0")
 
 
-async def test_web_mode_cannot_bypass_user_spending_limit():
+async def test_web_mode_has_no_local_budget_or_rate_rejections():
     service, pool, http = assistant()
     service.operations = OperationsRepository(pool)
-    service.settings = replace(service.settings, user_daily_budget_usd=Decimal("0.05"))
     await service.repository.set_mode((1, 1), "web")
-    assert (await service.respond((1, 1), "first search")).ok
-    assert (await service.respond((1, 1), "second search")).text == LIMIT_MESSAGES["user_budget"]
-    assert http.post.call_count == 1
+    for _ in range(4):
+        assert (await service.respond((1, 1), "search question")).ok
+    assert http.post.call_count == 4
+    assert all(row["reserved_usd"] == 0 for row in pool.events.values())
 
 
 @pytest.mark.parametrize("mode", ["chat", "web"])
