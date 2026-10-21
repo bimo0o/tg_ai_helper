@@ -29,3 +29,11 @@ def test_profile_is_data_with_user_role_and_empty_profile_adds_no_messages():
     messages = profile_messages({"daw": "Ableton Live"})
     assert messages[0]["role"] == "user"
     assert '"daw": "Ableton Live"' in messages[0]["content"]
+
+
+def test_translation_budget_does_not_replace_translation_with_a_summary():
+    messages = instruction_messages("translate", 256)
+    assert "Бюджет ответа: 256" in messages[0]["content"]
+    assert "не заменяй его пересказом" in messages[0]["content"]
+    assert messages[1:] == instruction_messages("translate")[1:]
+    assert instruction_messages("translate")[0]["content"] == SYSTEM_PROMPTS["translate"]

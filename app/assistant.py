@@ -103,7 +103,7 @@ class Assistant:
                     self.settings.history_max_chars - len(text) - profile_chars,
                 )
                 messages = [
-                    *instruction_messages(mode),
+                    *instruction_messages(mode, self.settings.max_output_tokens),
                     *context,
                     *history,
                     {"role": "user", "content": text},

@@ -5,7 +5,7 @@ import pytest
 
 from app.music_profile import MusicProfiles
 from app.operations import OperationsRepository
-from app.prompts import SYSTEM_PROMPTS
+from app.prompts import instruction_messages
 from tests.test_assistant import assistant
 from tests.test_commands import dispatch
 from tests.test_llm import response
@@ -19,7 +19,7 @@ async def test_chat_does_not_search_or_include_music_profile():
     assert (await service.respond((1, 1), "Explain photosynthesis")).ok
     payload = http.post.call_args.kwargs["json"]
     assert "plugins" not in payload
-    assert payload["messages"][0]["content"] == SYSTEM_PROMPTS["chat"]
+    assert payload["messages"][0]["content"] == instruction_messages("chat", 1500)[0]["content"]
     assert "private plugin collection" not in str(payload)
 
 
@@ -40,7 +40,7 @@ async def test_web_searches_each_turn_preserves_sources_and_isolates_profile():
     for call in http.post.call_args_list:
         payload = call.kwargs["json"]
         assert payload["plugins"][0]["id"] == "web"
-        assert payload["messages"][0]["content"] == SYSTEM_PROMPTS["web"]
+        assert payload["messages"][0]["content"] == instruction_messages("web", 1500)[0]["content"]
         assert "private preference" not in str(payload)
     assert len(http.post.call_args.kwargs["json"]["messages"]) == 4
     assert all(row["mode"] == "web" for row in pool.events.values())
@@ -54,7 +54,7 @@ async def test_one_off_search_has_general_context_and_preserves_selected_mode(mo
     await service.repository.add_message((1, 1), "assistant", "old answer", mode)
     assert (await service.respond((1, 1), "Find travel information", use_web=True)).ok
     payload = http.post.call_args.kwargs["json"]
-    assert payload["messages"][0]["content"] == SYSTEM_PROMPTS["web"]
+    assert payload["messages"][0]["content"] == instruction_messages("web", 1500)[0]["content"]
     assert "private mode history" not in str(payload)
     assert payload["plugins"][0]["id"] == "web"
     assert (await service.repository.get_settings((1, 1))).mode == mode

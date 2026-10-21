@@ -82,7 +82,7 @@ async def run_experiment(settings: Settings, directory: Path) -> int:
         "api": "OpenRouter Chat Completions /api/v1",
         "mode": "study",
         "prompt": PROMPT,
-        "instructions": instruction_messages("study"),
+        "instructions": instruction_messages("study", settings.max_output_tokens),
         "history_max_messages": settings.history_max_messages,
         "history_max_chars": settings.history_max_chars,
         "max_output_tokens": settings.max_output_tokens,

@@ -4,7 +4,7 @@ import pytest
 
 from app.assistant import ERROR_MESSAGE, TIMEOUT_MESSAGE, TRUNCATED_NOTICE, Assistant
 from app.config import Settings
-from app.prompts import SYSTEM_PROMPTS
+from app.prompts import instruction_messages
 from app.repository import Repository
 from tests.fakes import MemoryPool
 from tests.test_llm import client, response
@@ -25,7 +25,7 @@ async def test_regular_message_uses_active_prompt_and_exact_request_parameters()
     assert result.ok and result.text == "Ответ"
     payload = http.post.call_args.kwargs["json"]
     assert payload["messages"] == [
-        {"role": "system", "content": SYSTEM_PROMPTS["music"]},
+        *instruction_messages("music", 1500),
         {"role": "user", "content": "Как записать бас?"},
     ]
     assert payload["temperature"] == 0.7 and payload["model"] == "test-model"
@@ -54,7 +54,7 @@ async def test_current_request_reserved_and_oldest_pair_removed():
     await service.respond((1, 1), "two")
     await service.respond((1, 1), "three")
     messages = http.post.call_args.kwargs["json"]["messages"]
-    assert messages[0]["content"] == SYSTEM_PROMPTS["study"]
+    assert messages[0]["content"] == instruction_messages("study", 1500)[0]["content"]
     assert messages[1:] == [
         {"role": "user", "content": "two"},
         {"role": "assistant", "content": "ok"},
@@ -103,3 +103,16 @@ async def test_provider_failure_has_specific_safe_message_and_preserves_no_answe
     assert reply.text != ERROR_MESSAGE
     assert "example-only" not in reply.text
     assert [row["role"] for row in pool.messages] == ["user"]
+
+
+async def test_current_output_budget_is_in_system_instruction_without_trimming_user_input():
+    service, _, http = assistant()
+    await service.repository.set_mode((1, 1), "music")
+    question = "Explain bass, kick and limiter separately"
+    for budget in [256, 1024]:
+        service.settings = replace(service.settings, max_output_tokens=budget)
+        assert (await service.respond((1, 1), question)).ok
+        payload = http.post.call_args.kwargs["json"]
+        assert payload["max_tokens"] == budget
+        assert f"Бюджет ответа: {budget} выходных токенов." in payload["messages"][0]["content"]
+        assert payload["messages"][-1] == {"role": "user", "content": question}

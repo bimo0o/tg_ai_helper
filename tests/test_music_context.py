@@ -21,9 +21,9 @@ async def test_search_uses_general_prompt_when_music_mode_changes_before_lock(mo
     reply = await service.respond((1, 1), "find a plugin", use_web=True)
     assert reply.ok
     payload = http.post.call_args.kwargs["json"]
-    from app.prompts import SYSTEM_PROMPTS
+    from app.prompts import instruction_messages
 
-    assert payload["messages"][0]["content"] == SYSTEM_PROMPTS["web"]
+    assert payload["messages"][0]["content"] == instruction_messages("web", 1500)[0]["content"]
     assert payload["plugins"][0]["id"] == "web"
     assert all(row["mode"] == "web" for row in pool.messages)
     assert (await service.repository.get_settings((1, 1))).mode == "study"
