@@ -96,3 +96,21 @@ async def test_typing_is_sent_while_generation_is_pending(monkeypatch):
     assert any(
         isinstance(method, SendChatAction) and method.action == "typing" for method in methods
     )
+
+
+async def test_settings_command_changes_next_request_only_for_its_user():
+    _, service, _, http = await dispatch("/settings 1.0")
+    http.post.assert_not_called()
+    await service.respond((1, 1), "next")
+    assert http.post.call_args.kwargs["json"]["temperature"] == 1.0
+    await service.respond((2, 2), "other")
+    assert http.post.call_args.kwargs["json"]["temperature"] == 0.3
+
+
+async def test_current_input_exactly_at_character_limit_is_preserved():
+    text = "x" * 8000
+    _, _, _, http = await dispatch(text)
+    assert http.post.call_args.kwargs["json"]["messages"][-1] == {
+        "role": "user",
+        "content": text,
+    }

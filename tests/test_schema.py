@@ -1,0 +1,38 @@
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
+from app.schema import DDL, migrate
+
+
+def pool_with_version(version):
+    connection = Mock(execute=AsyncMock(), fetchval=AsyncMock(return_value=version))
+    transaction = Mock(__aenter__=AsyncMock(), __aexit__=AsyncMock(return_value=False))
+    connection.transaction.return_value = transaction
+    acquire = Mock(
+        __aenter__=AsyncMock(return_value=connection), __aexit__=AsyncMock(return_value=False)
+    )
+    return Mock(acquire=Mock(return_value=acquire)), connection, transaction
+
+
+async def test_clean_schema_install_is_transactional_and_versioned():
+    pool, connection, transaction = pool_with_version(None)
+    await migrate(pool)
+    calls = connection.execute.call_args_list
+    assert calls[0].args == ("SELECT pg_advisory_xact_lock($1)", 745312001)
+    assert calls[2].args == (DDL,)
+    assert calls[3].args == ("INSERT INTO schema_migrations (version) VALUES ($1)", 1)
+    transaction.__aexit__.assert_awaited_once_with(None, None, None)
+
+
+async def test_second_install_does_not_reapply_ddl():
+    pool, connection, _ = pool_with_version(1)
+    await migrate(pool)
+    assert all(call.args != (DDL,) for call in connection.execute.call_args_list)
+
+
+async def test_newer_schema_is_rejected_and_transaction_exits_with_error():
+    pool, _, transaction = pool_with_version(2)
+    with pytest.raises(RuntimeError, match="newer"):
+        await migrate(pool)
+    assert transaction.__aexit__.call_args.args[0] is RuntimeError

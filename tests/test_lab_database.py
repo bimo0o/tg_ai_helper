@@ -1,0 +1,43 @@
+import os
+
+import pytest
+
+from app.db import create_pool
+from app.repository import Repository, UserSettings
+from app.schema import migrate
+from tests.test_integration import database as database
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(os.environ.get("RUN_INTEGRATION") != "1", reason="Requires Docker opt-in"),
+]
+
+
+async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
+    settings, docker, wait_until_ready, name = database
+    pool = await create_pool(settings)
+    try:
+        await migrate(pool)
+        await migrate(pool)
+        assert await pool.fetchval("SELECT count(*) FROM schema_migrations") == 1
+        repo = Repository(pool)
+        await repo.set_temperature((1, 1), 0.7)
+        for owner in [(1, 1), (2, 2)]:
+            await repo.get_settings(owner)
+            await repo.add_message(owner, "user", "question", "study")
+            await repo.add_message(owner, "assistant", "answer", "study")
+    finally:
+        await pool.close()
+    docker("restart", name)
+    wait_until_ready()
+    restored_pool = await create_pool(settings)
+    try:
+        await migrate(restored_pool)
+        repo = Repository(restored_pool)
+        assert await repo.get_settings((1, 1)) == UserSettings("study", 0.7)
+        assert len(await repo.get_history((1, 1), "study", 40, 8000)) == 2
+        await repo.set_mode((1, 1), "music")
+        assert await repo.get_history((1, 1), "study", 40, 8000) == []
+        assert len(await repo.get_history((2, 2), "study", 40, 8000)) == 2
+    finally:
+        await restored_pool.close()
