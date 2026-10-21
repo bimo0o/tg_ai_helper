@@ -16,7 +16,8 @@ INLINE = re.compile(
     r"|\[(?P<label>[^\]\n]+)\]\((?P<url>[^)\s]+)\)"
     r"|\*\*(?P<bold>.+?)\*\*|__(?P<under>.+?)__"
     r"|(?<!\w)\*(?P<italic>[^*\n]+)\*(?!\w)"
-    r"|(?<!\w)_(?P<underscore>[^_\n]+)_(?!\w)"
+    r"|(?<!\w)_(?P<underscore>[^_\n]+)_(?!\w)",
+    re.DOTALL,
 )
 
 
@@ -41,11 +42,13 @@ def _inline(text: str, tags: tuple[Tag, ...] = (), depth=0) -> list[Span]:
             url = match.group("url")
             try:
                 parsed = urlsplit(url)
+                _ = parsed.port
                 safe = (
                     parsed.scheme in {"http", "https"}
                     and parsed.hostname
                     and not parsed.username
                     and not parsed.password
+                    and len(url) <= 2048
                     and not any(ord(char) < 33 for char in url)
                 )
             except ValueError:
@@ -59,7 +62,8 @@ def _inline(text: str, tags: tuple[Tag, ...] = (), depth=0) -> list[Span]:
             strong = match.group("bold") or match.group("under")
             value = strong or match.group("italic") or match.group("underscore")
             tag = ("<b>", "</b>") if strong else ("<i>", "</i>")
-            result.extend(_inline(value, (*tags, tag), depth + 1))
+            nested = tags if tag in tags else (*tags, tag)
+            result.extend(_inline(value, nested, depth + 1))
         start = match.end()
     result.append((text[start:], tags))
     return result
@@ -67,9 +71,16 @@ def _inline(text: str, tags: tuple[Tag, ...] = (), depth=0) -> list[Span]:
 
 def _spans(text: str) -> list[Span]:
     spans = []
+    normal = []
     code = None
+
+    def flush_normal():
+        spans.extend(_inline("".join(normal)))
+        normal.clear()
+
     for line in text.splitlines(keepends=True):
         if line.lstrip().startswith("```"):
+            flush_normal()
             if code is None:
                 code = []
             else:
@@ -81,14 +92,39 @@ def _spans(text: str) -> list[Span]:
             continue
         heading = re.match(r"^\s{0,3}#{1,6}\s+(.*?)(\n?)$", line)
         if heading:
+            flush_normal()
             spans.extend(_inline(heading[1], (("<b>", "</b>"),)))
             spans.append((heading[2], ()))
         else:
             line = re.sub(r"^(\s*)[-*+]\s+", r"\1• ", line)
-            spans.extend(_inline(line))
+            normal.append(line)
+    flush_normal()
     if code is not None:
         spans.append(("".join(code), (("<pre>", "</pre>"),)))
     return spans
+
+
+def _chunk_ends(text: str, limit: int) -> list[int]:
+    ends = []
+    start = 0
+    while start < len(text):
+        end, units = start, 0
+        while end < len(text):
+            width = 2 if ord(text[end]) > 0xFFFF else 1
+            if units + width > limit:
+                break
+            units += width
+            end += 1
+        if end < len(text):
+            floor = start + (end - start) // 2
+            for separator in ("\n\n", "\n", " "):
+                boundary = text.rfind(separator, floor, end)
+                if boundary >= floor:
+                    end = boundary + len(separator)
+                    break
+        ends.append(end)
+        start = end
+    return ends
 
 
 def format_chunks(text: str, limit=4096) -> list[FormattedChunk]:
@@ -97,13 +133,16 @@ def format_chunks(text: str, limit=4096) -> list[FormattedChunk]:
         raise ValueError("Message limit must be at least 2.")
     chunks = []
     html_parts, text_parts = [], []
-    units = 0
+    spans = _spans(text)
+    boundaries = iter(_chunk_ends("".join(value for value, _ in spans), limit))
+    boundary = next(boundaries, None)
+    position = 0
 
     def flush():
-        nonlocal html_parts, text_parts, units
+        nonlocal html_parts, text_parts
         if text_parts:
             chunks.append(FormattedChunk("".join(html_parts), "".join(text_parts)))
-        html_parts, text_parts, units = [], [], 0
+        html_parts, text_parts = [], []
 
     def append_fragment(fragment, tags):
         if fragment:
@@ -116,15 +155,15 @@ def format_chunks(text: str, limit=4096) -> list[FormattedChunk]:
             text_parts.append(raw)
             fragment.clear()
 
-    for value, tags in _spans(text):
+    for value, tags in spans:
         fragment = []
         for char in value:
-            size = 2 if ord(char) > 0xFFFF else 1
-            if units + size > limit:
+            if position == boundary:
                 append_fragment(fragment, tags)
                 flush()
+                boundary = next(boundaries, None)
             fragment.append(char)
-            units += size
+            position += 1
         append_fragment(fragment, tags)
     flush()
     return chunks

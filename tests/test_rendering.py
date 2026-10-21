@@ -46,6 +46,27 @@ def test_untrusted_html_and_unsafe_links_cannot_become_html_entities():
     assert CheckedHTML(chunk.html).text == "<script>attack</script> bad x"
 
 
+def test_invalid_port_is_not_rendered_as_a_clickable_link():
+    chunk = format_chunks("[source](https://example.org:invalid/path)")[0]
+    assert chunk.html == chunk.text == "source"
+
+
+@pytest.mark.parametrize("separator", ["\n\n", "\n", " "], ids=["paragraph", "line", "word"])
+def test_chunks_prefer_readable_boundaries_without_losing_whitespace(separator):
+    first = "a" * 55 + separator
+    source = "**" + first + "b" * 70 + "**"
+    chunks = format_chunks(source, limit=100)
+    assert chunks[0].text == first
+    assert "".join(chunk.text for chunk in chunks) == first + "b" * 70
+    assert all(CheckedHTML(chunk.html).text == chunk.text for chunk in chunks)
+
+
+def test_large_unbroken_unicode_word_is_split_without_exceeding_telegram_limit():
+    chunks = format_chunks("**" + "🎸" * 5000 + "**")
+    assert "".join(chunk.text for chunk in chunks) == "🎸" * 5000
+    assert all(len(chunk.text.encode("utf-16-le")) // 2 <= 4096 for chunk in chunks)
+
+
 @pytest.mark.parametrize(
     "source",
     ["**" + "🎸&<>" * 3000 + "**", "```python\n" + "x<&\n" * 5000],
