@@ -1,7 +1,8 @@
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from app.assistant import Assistant
+from app.assistant import ERROR_MESSAGE, Assistant
 from app.operations import MODEL_OPTIONS, OperationsRepository
 from tests.test_assistant import assistant
 from tests.test_llm import response
@@ -66,3 +67,28 @@ async def test_database_failure_after_generation_still_records_known_cost(monkey
     assert not (await service.respond((1, 1), "question")).ok
     event = next(iter(pool.events.values()))
     assert event["status"] == "error" and event["cost_usd"] == Decimal("0.001")
+
+
+async def test_commit_failure_after_generation_is_not_reported_as_success(monkeypatch):
+    data = response()
+    data["usage"]["cost"] = 0.001
+    service, pool, _ = assistant(data)
+    service.operations = OperationsRepository(pool)
+    transactions = 0
+
+    @asynccontextmanager
+    async def transaction():
+        nonlocal transactions
+        transactions += 1
+        current = transactions
+        yield pool
+        if current == 2:
+            raise ConnectionError("example commit failure")
+
+    monkeypatch.setattr(pool, "transaction", transaction)
+    reply = await service.respond((1, 1), "question")
+    assert not reply.ok
+    assert reply.text == ERROR_MESSAGE
+    event = next(iter(pool.events.values()))
+    assert event["status"] == "error"
+    assert event["cost_usd"] == Decimal("0.001")

@@ -110,6 +110,7 @@ class Assistant:
         except LimitExceeded as exc:
             reply = Reply(LIMIT_MESSAGES[exc.kind], error_kind=exc.kind)
         except Exception:
+            reply = Reply(ERROR_MESSAGE, error_kind="service")
             logger.warning("Dialogue processing failed; no request content logged.")
         finally:
             if event is not None:
