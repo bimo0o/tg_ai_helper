@@ -22,7 +22,7 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
     try:
         await migrate(pool)
         await migrate(pool)
-        assert await pool.fetchval("SELECT count(*) FROM schema_migrations") == 2
+        assert await pool.fetchval("SELECT count(*) FROM schema_migrations") == 3
         repo = Repository(pool)
         await repo.set_temperature((1, 1), 0.7)
         for owner in [(1, 1), (2, 2)]:

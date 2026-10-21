@@ -2,7 +2,7 @@
 
 import asyncpg
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DDL = """
 CREATE TABLE IF NOT EXISTS user_settings (
     chat_id BIGINT NOT NULL,
@@ -53,7 +53,18 @@ CREATE TABLE request_events (
 CREATE INDEX request_events_created ON request_events (created_at);
 CREATE INDEX request_events_user_created ON request_events (user_id, created_at);
 """
-MIGRATIONS = {1: DDL, 2: ADMIN_DDL}
+POLICY_DDL = """
+ALTER TABLE request_events ADD COLUMN reserved_usd NUMERIC(20, 10)
+    NOT NULL DEFAULT 0 CHECK (reserved_usd >= 0);
+CREATE TABLE music_profiles (
+    user_id BIGINT PRIMARY KEY,
+    data JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(data) = 'object'),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_used_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX music_profiles_last_used ON music_profiles (last_used_at);
+"""
+MIGRATIONS = {1: DDL, 2: ADMIN_DDL, 3: POLICY_DDL}
 
 
 async def migrate(pool: asyncpg.Pool) -> None:
