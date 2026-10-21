@@ -33,6 +33,7 @@ async def test_success_parameters_usage_and_no_sensitive_logs(caplog):
     payload = session.post.call_args.kwargs["json"]
     assert payload["messages"] == [{"role": "user", "content": "private-dialogue"}]
     assert payload["temperature"] == 0.3
+    assert payload["max_tokens"] == 1500
     assert "plugins" not in payload
     assert "LLM start" in caplog.text and "LLM end" in caplog.text
     assert "private-dialogue" not in caplog.text and "example-only" not in caplog.text
@@ -105,3 +106,12 @@ def test_missing_or_invalid_cost_remains_unknown(cost):
     data = response()
     data["usage"]["cost"] = cost
     assert parse_response(data).cost_usd is None
+
+
+async def test_output_limit_is_applied_and_invalid_limit_never_calls_api():
+    llm, session = client(response())
+    await llm.generate([], "model", 0.3, max_output_tokens=256)
+    assert session.post.call_args.kwargs["json"]["max_tokens"] == 256
+    session.post.reset_mock()
+    assert not (await llm.generate([], "model", 0.3, max_output_tokens=0)).ok
+    session.post.assert_not_called()

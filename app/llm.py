@@ -80,9 +80,17 @@ class LLMClient:
         self.timeout = timeout
 
     async def generate(
-        self, messages: list[dict[str, str]], model: str, temperature: float, *, web=False
+        self,
+        messages: list[dict[str, str]],
+        model: str,
+        temperature: float,
+        *,
+        web=False,
+        max_output_tokens=1500,
     ) -> Generation:
         if type(temperature) not in {float, int} or temperature not in TEMPERATURES:
+            return Generation(False, error_kind="settings")
+        if type(max_output_tokens) is not int or not 1 <= max_output_tokens <= 8192:
             return Generation(False, error_kind="settings")
         request_id = uuid.uuid4().hex
         started = time.monotonic()
@@ -94,6 +102,7 @@ class LLMClient:
                 "messages": messages,
                 "temperature": temperature,
                 "stream": False,
+                "max_tokens": max_output_tokens,
                 "provider": {"require_parameters": True},
             }
             if web:
