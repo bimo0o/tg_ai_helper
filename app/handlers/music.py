@@ -51,7 +51,7 @@ async def search(message: Message, command: CommandObject, assistant: Assistant)
     query = (command.args or "").strip()
     if not query:
         await message.answer(
-            "В режиме /music используйте: /search <вопрос для web-поиска>.", parse_mode=None
+            "Используйте /search <вопрос на любую тему> или включите режим /web.", parse_mode=None
         )
         return
     try:

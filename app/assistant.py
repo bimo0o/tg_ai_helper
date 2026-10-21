@@ -82,13 +82,11 @@ class Assistant:
         api_started = False
         try:
             profile = {}
-            if self.profiles is not None or use_web:
+            if self.profiles is not None:
                 snapshot = await self.repository.get_settings(owner)
                 if snapshot.mode == "music" and self.profiles is not None:
                     profile = await self.profiles.get(owner[1])
             if use_web:
-                if snapshot.mode != "music":
-                    return Reply("Для поиска сначала включите /music.", error_kind="input")
                 if not self.settings.music_web_search:
                     return Reply("Web-поиск отключён в настройках бота.", error_kind="input")
             model = self.settings.llm_model
@@ -97,9 +95,10 @@ class Assistant:
                 event = await self.operations.start_request(owner, model, self.settings)
             async with self.repository.locked(owner) as repository:
                 user = await repository.get_settings(owner)
-                mode = user.mode
-                if use_web and mode != "music":
-                    reply = Reply("Для поиска сначала включите /music.", error_kind="input")
+                mode = "web" if use_web and user.mode != "music" else user.mode
+                search_enabled = use_web or mode == "web"
+                if search_enabled and not self.settings.music_web_search:
+                    reply = Reply("Web-поиск отключён в настройках бота.", error_kind="input")
                     return reply
                 context = profile_messages(profile) if mode == "music" else []
                 profile_chars = sum(len(message["content"]) for message in context)
@@ -107,23 +106,23 @@ class Assistant:
                     context, profile_chars = [], 0
                 history = await repository.get_history(
                     owner,
-                    user.mode,
+                    mode,
                     self.settings.history_max_messages - 1 - len(context),
                     self.settings.history_max_chars - len(text) - profile_chars,
                 )
                 messages = [
-                    *instruction_messages(user.mode),
+                    *instruction_messages(mode),
                     *context,
                     *history,
                     {"role": "user", "content": text},
                 ]
-                await repository.add_message(owner, "user", text, user.mode)
+                await repository.add_message(owner, "user", text, mode)
                 api_started = True
                 result = await self.llm.generate(
                     messages,
                     model,
                     user.temperature,
-                    web=use_web and user.mode == "music" and self.settings.music_web_search,
+                    web=search_enabled,
                     max_output_tokens=self.settings.max_output_tokens,
                 )
                 if not result.ok:
@@ -135,7 +134,7 @@ class Assistant:
                 sources = [url for url in result.citations if url not in answer]
                 if sources:
                     answer += "\n\nИсточники:\n" + "\n".join(sources)
-                await repository.add_message(owner, "assistant", answer, user.mode)
+                await repository.add_message(owner, "assistant", answer, mode)
                 reply = Reply(answer, ok=True, usage=result.usage)
         except DialogueBusy:
             reply = Reply(BUSY_MESSAGE, error_kind="busy")

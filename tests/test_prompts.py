@@ -2,8 +2,8 @@ from app.prompts import MODES, SYSTEM_PROMPTS, instruction_messages, profile_mes
 
 
 def test_modes_have_distinct_instructions_and_translation_boundary_examples():
-    assert set(MODES) == {"study", "translate", "music"}
-    assert len(set(SYSTEM_PROMPTS.values())) == 3
+    assert set(MODES) == {"study", "translate", "music", "chat", "web"}
+    assert len(set(SYSTEM_PROMPTS.values())) == 5
     messages = instruction_messages("translate")
     assert [m["role"] for m in messages] == [
         "system",

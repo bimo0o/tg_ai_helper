@@ -25,11 +25,11 @@ async def test_music_does_not_search_until_explicitly_requested():
     assert http.post.call_args.kwargs["json"]["plugins"][0]["id"] == "web"
 
 
-async def test_search_requires_music_and_respects_global_switch():
+async def test_search_works_outside_music_and_respects_global_switch():
     service, _, http = assistant()
-    assert (await service.respond((1, 1), "query", use_web=True)).text == (
-        "Для поиска сначала включите /music."
-    )
+    assert (await service.respond((1, 1), "query", use_web=True)).ok
+    assert http.post.call_args.kwargs["json"]["plugins"][0]["id"] == "web"
+    http.post.reset_mock()
     await service.repository.set_mode((1, 1), "music")
     service.settings = replace(service.settings, music_web_search=False)
     assert (await service.respond((1, 1), "query", use_web=True)).text == (

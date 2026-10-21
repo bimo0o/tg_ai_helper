@@ -59,7 +59,7 @@ async def test_profile_rejects_unknown_fields_and_search_requires_query():
     assert sent[0].text == PROFILE_HELP
     http.post.assert_not_called()
     sent, _, http = await dispatch("/search")
-    assert sent[0].text == "В режиме /music используйте: /search <вопрос для web-поиска>."
+    assert sent[0].text == "Используйте /search <вопрос на любую тему> или включите режим /web."
     http.post.assert_not_called()
 
 

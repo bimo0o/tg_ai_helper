@@ -1,12 +1,11 @@
 from contextlib import asynccontextmanager
-from decimal import Decimal
 
 from app.music_profile import MusicProfiles
 from app.operations import OperationsRepository
 from tests.test_assistant import assistant
 
 
-async def test_search_rejects_mode_changed_after_snapshot_without_api_cost(monkeypatch):
+async def test_search_uses_general_prompt_when_music_mode_changes_before_lock(monkeypatch):
     service, pool, http = assistant()
     await service.repository.set_mode((1, 1), "music")
     service.operations = OperationsRepository(pool)
@@ -20,13 +19,16 @@ async def test_search_rejects_mode_changed_after_snapshot_without_api_cost(monke
 
     monkeypatch.setattr(service.repository, "locked", changed_mode)
     reply = await service.respond((1, 1), "find a plugin", use_web=True)
-    assert not reply.ok and reply.error_kind == "input"
-    assert reply.text == "Для поиска сначала включите /music."
-    http.post.assert_not_called()
-    assert pool.messages == []
+    assert reply.ok
+    payload = http.post.call_args.kwargs["json"]
+    from app.prompts import SYSTEM_PROMPTS
+
+    assert payload["messages"][0]["content"] == SYSTEM_PROMPTS["web"]
+    assert payload["plugins"][0]["id"] == "web"
+    assert all(row["mode"] == "web" for row in pool.messages)
+    assert (await service.repository.get_settings((1, 1))).mode == "study"
     event = next(iter(pool.events.values()))
-    assert event["error_kind"] == "input"
-    assert event["cost_usd"] == event["reserved_usd"] == Decimal("0")
+    assert event["error_kind"] is None and event["mode"] == "web"
 
 
 async def test_music_profile_survives_reset_and_does_not_leak_to_other_modes_or_users():

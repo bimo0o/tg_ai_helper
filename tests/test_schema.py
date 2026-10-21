@@ -2,7 +2,16 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from app.schema import ADMIN_DDL, DDL, FLASH_DDL, MODEL_DDL, POLICY_DDL, SCHEMA_VERSION, migrate
+from app.schema import (
+    ADMIN_DDL,
+    DDL,
+    FLASH_DDL,
+    GENERAL_MODES_DDL,
+    MODEL_DDL,
+    POLICY_DDL,
+    SCHEMA_VERSION,
+    migrate,
+)
 
 
 def pool_with_version(version):
@@ -73,4 +82,14 @@ async def test_existing_deepseek_database_receives_flash_upgrade():
     assert connection.execute.call_args_list[3].args == (
         "INSERT INTO schema_migrations (version) VALUES ($1)",
         5,
+    )
+
+
+async def test_flash_database_adds_general_modes_without_deleting_data():
+    pool, connection, _ = pool_with_version(5)
+    await migrate(pool)
+    assert connection.execute.call_args_list[2].args == (GENERAL_MODES_DDL,)
+    assert connection.execute.call_args_list[3].args == (
+        "INSERT INTO schema_migrations (version) VALUES ($1)",
+        6,
     )

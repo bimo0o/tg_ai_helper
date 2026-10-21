@@ -58,7 +58,8 @@ async def test_error_returns_exact_safe_text():
 
 
 @pytest.mark.parametrize(
-    "command", ["/start", "/study", "/translate", "/music", "/reset", "/settings 0.7"]
+    "command",
+    ["/start", "/study", "/translate", "/music", "/chat", "/web", "/reset", "/settings 0.7"],
 )
 async def test_commands_never_reach_llm(command):
     methods, _, _, http = await dispatch(command)

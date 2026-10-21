@@ -35,6 +35,9 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
         async with repo.locked((1, 1)):
             pass
         await repo.set_temperature((1, 1), 0.7)
+        await repo.set_mode((3, 3), "web")
+        await repo.add_message((3, 3), "user", "general search", "web")
+        await repo.add_message((3, 3), "assistant", "answer with sources", "web")
         for owner in [(1, 1), (2, 2)]:
             await repo.get_settings(owner)
             await repo.add_message(owner, "user", "question", "study")
@@ -47,6 +50,8 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
     try:
         await migrate(restored_pool)
         repo = Repository(restored_pool)
+        assert (await repo.get_settings((3, 3))).mode == "web"
+        assert len(await repo.get_history((3, 3), "web", 40, 8000)) == 2
         assert await repo.get_settings((1, 1)) == UserSettings("study", 0.7)
         assert len(await repo.get_history((1, 1), "study", 40, 8000)) == 2
         await repo.set_mode((1, 1), "music")

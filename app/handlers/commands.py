@@ -9,11 +9,13 @@ from app.prompts import MODES
 from app.repository import BUSY_MESSAGE, DialogueBusy, Repository
 
 START_MESSAGE = (
-    "Я — AI-ассистент студента. Помогу с программированием, переводом и созданием музыки.\n"
+    "Я — AI-ассистент. Помогу с обычными вопросами, поиском, учёбой и музыкой.\n"
+    "/chat — обычный диалог на любую тему без автоматического поиска\n"
+    "/web — поиск на любую тему с источниками; каждый вопрос запускает платный поиск\n"
     "/study — учебные вопросы по программированию\n"
     "/translate — перевод (укажите целевой язык в сообщении)\n"
     "/music — создание музыки, сведение и плагины\n"
-    "/search <вопрос> — явный платный web-поиск в режиме /music\n"
+    "/search <вопрос> — разовый платный поиск из любого режима\n"
     "/profile — музыкальный профиль: DAW, жанры, плагины и оборудование\n"
     "/settings — режим, модель и temperature\n"
     "/settings 0.0|0.3|0.7|1.0 — изменить temperature\n"
@@ -95,7 +97,7 @@ def create_router() -> Router:
     router = Router(name="commands")
     router.message.filter(F.chat.type == "private", F.text)
     router.message.register(start, CommandStart())
-    router.message.register(change_mode, Command("study", "translate", "music"))
+    router.message.register(change_mode, Command("study", "translate", "music", "chat", "web"))
     router.message.register(show_settings, Command("settings"))
     router.message.register(reset, Command("reset"))
     return router
