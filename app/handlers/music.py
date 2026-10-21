@@ -1,5 +1,6 @@
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from aiogram.utils.chat_action import ChatActionSender
 
@@ -18,9 +19,16 @@ PROFILE_HELP = (
 )
 
 
-async def profile(message: Message, command: CommandObject, profiles: MusicProfiles) -> None:
+async def profile(
+    message: Message,
+    command: CommandObject,
+    profiles: MusicProfiles,
+    state: FSMContext | None = None,
+) -> None:
     if message.from_user is None:
         return
+    if state is not None:
+        await state.clear()
     argument = (command.args or "").strip()
     try:
         if argument == "clear":
@@ -46,9 +54,16 @@ async def profile(message: Message, command: CommandObject, profiles: MusicProfi
         await message.answer(part, parse_mode=None)
 
 
-async def search(message: Message, command: CommandObject, assistant: Assistant) -> None:
+async def search(
+    message: Message,
+    command: CommandObject,
+    assistant: Assistant,
+    state: FSMContext | None = None,
+) -> None:
     if message.from_user is None:
         return
+    if state is not None:
+        await state.clear()
     query = (command.args or "").strip()
     if not query:
         await message.answer(

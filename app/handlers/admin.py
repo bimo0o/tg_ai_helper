@@ -1,5 +1,6 @@
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.admin import DENIED, AdminService, AdminView
@@ -32,9 +33,11 @@ def keyboard(view: AdminView) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-async def panel(message: Message, admin: AdminService) -> None:
+async def panel(message: Message, admin: AdminService, state: FSMContext | None = None) -> None:
     if message.from_user is None:
         return
+    if state is not None:
+        await state.clear()
     try:
         view = await admin.overview(message.from_user.id)
         if view is None:
@@ -45,7 +48,9 @@ async def panel(message: Message, admin: AdminService) -> None:
         await message.answer(ERROR_MESSAGE, parse_mode=None)
 
 
-async def action(callback: CallbackQuery, admin: AdminService) -> None:
+async def action(
+    callback: CallbackQuery, admin: AdminService, state: FSMContext | None = None
+) -> None:
     message = callback.message
     if (
         not isinstance(message, Message)
@@ -58,6 +63,8 @@ async def action(callback: CallbackQuery, admin: AdminService) -> None:
         if not await admin.authorized(callback.from_user.id):
             await callback.answer(DENIED, show_alert=True)
             return
+        if state is not None:
+            await state.clear()
         await callback.answer()
         parts = (callback.data or "").split(":")
         if len(parts) == 3 and parts[:2] == ["adm", "model"]:

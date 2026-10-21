@@ -12,6 +12,7 @@ from app.config import ConfigError, Settings
 from app.db import create_pool
 from app.handlers.admin import create_router as admin_router
 from app.handlers.commands import create_router as commands_router
+from app.handlers.interface import create_router as interface_router
 from app.handlers.messages import create_router as messages_router
 from app.handlers.music import create_router as music_router
 from app.health import HealthState, start_health_server
@@ -77,6 +78,7 @@ async def run(settings: Settings) -> None:
         )
         dispatcher = Dispatcher()
         dispatcher.include_router(admin_router())
+        dispatcher.include_router(interface_router())
         dispatcher.include_router(music_router())
         dispatcher.include_router(commands_router())
         dispatcher.include_router(messages_router())
