@@ -1,10 +1,42 @@
+import logging
+import uuid
+
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.admin import DENIED, AdminService, AdminView
-from app.assistant import ERROR_MESSAGE
+
+logger = logging.getLogger(__name__)
+ADMIN_ERROR = "Не удалось обновить админ-панель. Попробуйте открыть /admin заново."
+
+
+def log_failure(stage, error):
+    request_id = uuid.uuid4().hex
+    logger.warning(
+        "Admin panel failed request_id=%s stage=%s error_type=%s",
+        request_id,
+        stage,
+        type(error).__name__,
+    )
+
+
+async def update_view(message, view):
+    markup = keyboard(view)
+    if message.text == view.text and message.reply_markup == markup:
+        return
+    try:
+        await message.edit_text(view.text, reply_markup=markup, parse_mode=None)
+    except TelegramBadRequest as error:
+        reason = error.message.lower()
+        if "message is not modified" in reason:
+            return
+        if "message can't be edited" in reason or "message to edit not found" in reason:
+            await message.answer(view.text, reply_markup=markup, parse_mode=None)
+            return
+        raise
 
 
 def keyboard(view: AdminView) -> InlineKeyboardMarkup:
@@ -45,8 +77,9 @@ async def panel(message: Message, admin: AdminService, state: FSMContext | None 
             await message.answer(DENIED, parse_mode=None)
         else:
             await message.answer(view.text, reply_markup=keyboard(view), parse_mode=None)
-    except Exception:
-        await message.answer(ERROR_MESSAGE, parse_mode=None)
+    except Exception as error:
+        log_failure("open", error)
+        await message.answer(ADMIN_ERROR, parse_mode=None)
 
 
 async def action(
@@ -60,13 +93,21 @@ async def action(
     ):
         await callback.answer(DENIED, show_alert=True)
         return
+    stage = "authorize"
     try:
         if not await admin.authorized(callback.from_user.id):
             await callback.answer(DENIED, show_alert=True)
             return
         if state is not None:
             await state.clear()
-        await callback.answer()
+        stage = "acknowledge"
+        try:
+            await callback.answer()
+        except TelegramBadRequest as error:
+            reason = error.message.lower()
+            if "query is too old" not in reason and "query id is invalid" not in reason:
+                raise
+        stage = "overview"
         parts = (callback.data or "").split(":")
         if len(parts) == 3 and parts[:2] == ["adm", "model"]:
             if not await admin.switch_model(callback.from_user.id, parts[2]):
@@ -80,13 +121,13 @@ async def action(
         if view is None:
             await message.answer(DENIED, parse_mode=None)
             return
-        markup = keyboard(view)
-        if message.text != view.text or message.reply_markup != markup:
-            await message.edit_text(view.text, reply_markup=markup, parse_mode=None)
+        stage = "edit"
+        await update_view(message, view)
     except ValueError:
         await message.answer("Некорректное действие. Откройте /admin заново.", parse_mode=None)
-    except Exception:
-        await message.answer(ERROR_MESSAGE, parse_mode=None)
+    except Exception as error:
+        log_failure(stage, error)
+        await message.answer(ADMIN_ERROR, parse_mode=None)
 
 
 def create_router() -> Router:
