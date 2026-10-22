@@ -171,7 +171,7 @@ class Reminders:
             )
             await connection.execute(
                 "UPDATE reminders SET status='missed', finished_at=$1 "
-                "WHERE status='scheduled' AND remind_at < $1 - interval '24 hours'",
+                "WHERE status='scheduled' AND remind_at < $1::timestamptz - interval '24 hours'",
                 now,
             )
             row = await connection.fetchrow(
@@ -179,7 +179,8 @@ class Reminders:
                 "WHERE status='scheduled' AND remind_at <= $1 "
                 "ORDER BY remind_at, id LIMIT 1 FOR UPDATE SKIP LOCKED) "
                 "UPDATE reminders r SET status='sending', claim_token=$2, "
-                "lease_until=$1 + interval '2 minutes' FROM due WHERE r.id=due.id RETURNING r.*",
+                "lease_until=$1::timestamptz + interval '2 minutes' "
+                "FROM due WHERE r.id=due.id RETURNING r.*",
                 now,
                 uuid4(),
             )
