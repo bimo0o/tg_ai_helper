@@ -48,6 +48,12 @@ scheduled may become cancelled. A sent message does not imply the user read it.
 Unique constraints enforce update/action identity. Worker claims and completion tokens prevent stale writes.
 An expired worker lease does not justify replaying a potentially accepted Telegram send.
 IANA conversion rejects nonexistent or ambiguous local times. Time is injectable in tests.
+Default timezone setup asks for the user's current local HH:MM, infers a fixed UTC offset
+in 15-minute increments and reports the resulting local clock. Ambiguous day boundaries
+require the local date as well. Fixed offsets do not imply a geographical/DST region;
+users must update them after clock changes or travel. Legacy IANA input stays supported.
+Relative reminders use a host-side validated delay and server clock, requiring no timezone.
+Fresh trusted timezone state follows stale dialogue context before the current request.
 Profiles, model arguments, schedule text and external results never authorize a write.
 
 ## Agent limits

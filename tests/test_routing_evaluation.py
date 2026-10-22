@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.llm import Generation, ToolCall
-from app.routing_evaluation import arguments_match, evaluate, load_dataset, main
+from app.routing_evaluation import arguments_match, classify, evaluate, load_dataset, main
 
 DATASET = "docs/evaluation/lab2-routing-authored.json"
 
@@ -14,6 +14,14 @@ def test_authored_dataset_is_labeled_fixed_and_has_the_declared_distribution():
     assert dataset.source == "authored-supplementary-not-official"
     assert len(dataset.cases) == 12 and len(digest) == 64
     assert dataset.reference_time.isoformat() == "2030-01-10T10:00:00+03:00"
+    relative = Generation(
+        True,
+        tool_calls=(
+            ToolCall("a", "prepare_relative_reminder", {"text": "Test", "delay_seconds": 300}),
+        ),
+    )
+    action, args = classify(relative, dataset.reference_time)
+    assert action == "add_reminder" and args["remind_at"] == "2030-01-10T10:05:00+03:00"
 
 
 def test_dry_run_never_loads_secrets_or_creates_llm_client(monkeypatch, capsys):

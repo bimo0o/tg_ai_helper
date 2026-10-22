@@ -17,7 +17,7 @@ from aiohttp import ClientSession
 from dotenv import dotenv_values
 from pydantic import Field, model_validator
 
-from app.agent import Agent, Clarification
+from app.agent import Agent, Clarification, RelativeReminder
 from app.config import Settings
 from app.llm import TEMPERATURES, Generation, LLMClient
 from app.mcp.authorization import WriteAuthority
@@ -108,7 +108,7 @@ def arguments_match(name, actual, alternatives):
     return False
 
 
-def classify(result):
+def classify(result, reference_time=None):
     if not result.ok:
         return "error", {}
     if not result.tool_calls:
@@ -116,6 +116,21 @@ def classify(result):
     if len(result.tool_calls) != 1:
         return "multiple", {}
     call = result.tool_calls[0]
+    if call.name == "prepare_relative_reminder":
+        try:
+            request = RelativeReminder.model_validate(call.arguments)
+            if reference_time is None:
+                return "error", {}
+            from datetime import timedelta
+
+            return "add_reminder", {
+                "text": request.text,
+                "remind_at": (
+                    reference_time + timedelta(seconds=request.delay_seconds)
+                ).isoformat(),
+            }
+        except ValueError:
+            return "error", {}
     if call.name == "request_clarification":
         try:
             question = Clarification.model_validate(call.arguments).question
@@ -187,7 +202,7 @@ async def evaluate(dataset, llm, model, temperature, budget, on_progress=None):
                 "evaluation:" + case.id,
             )
             result = probe.first or outcome.generation
-            action, arguments = classify(result)
+            action, arguments = classify(result, dataset.reference_time)
             routing_ok = action == case.expected_action
             args_ok = (
                 routing_ok and arguments_match(action, arguments, case.expected_arguments)
@@ -201,6 +216,9 @@ async def evaluate(dataset, llm, model, temperature, budget, on_progress=None):
                     "expected_action": case.expected_action,
                     "expected_arguments": case.expected_arguments,
                     "actual_action": action,
+                    "native_tool": result.tool_calls[0].name
+                    if len(result.tool_calls) == 1
+                    else None,
                     "actual_arguments": arguments,
                     "answer_excerpt": result.text[:1500],
                     "answer_excerpt_truncated": len(result.text) > 1500,

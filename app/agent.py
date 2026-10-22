@@ -5,6 +5,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 from pydantic import Field, field_validator
@@ -25,6 +26,11 @@ class Clarification(Contract):
         if not value.strip():
             raise ValueError("A clarification must contain a question")
         return value.strip()
+
+
+class RelativeReminder(Contract):
+    text: str = Field(min_length=1, max_length=500)
+    delay_seconds: int = Field(strict=True, ge=1, le=366 * 86400)
 
 
 @dataclass
@@ -56,6 +62,7 @@ class Agent:
         try:
             async with asyncio.timeout(90):
                 zone = await self.reminders.get_timezone(owner[1])
+                logger.info("Agent time context timezone_configured=%s", bool(zone))
                 definitions = []
                 if self.tools is not None:
                     listing = getattr(self.tools, "discovered_tools", None)
@@ -82,6 +89,21 @@ class Agent:
                             },
                         }
                     )
+                    definitions.append(
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "prepare_relative_reminder",
+                                "description": (
+                                    "Подготовить напоминание через указанное число секунд. "
+                                    "Через 5 минут: delay_seconds=300. Часовой пояс не нужен. "
+                                    "Время рассчитает сервер; создание только после "
+                                    "кнопки подтверждения."
+                                ),
+                                "parameters": RelativeReminder.model_json_schema(),
+                            },
+                        }
+                    )
                 now = self.reminders.clock()
                 reference = now.astimezone(timezone(zone)) if zone else now
                 instructions = (
@@ -99,7 +121,12 @@ class Agent:
                     "Результат чтения изложи кратко с фактическими значениями и источником. "
                     f"Текущее время: {reference.isoformat()}. "
                     f"Сохранённая зона: {zone or 'не задана'}. "
-                    "Только для запроса напоминания без сохранённой зоны попроси /timezone. "
+                    "Это актуальное состояние БД; прежние ответы об отсутствии зоны устарели. "
+                    "Если зона сохранена, НЕ проси настроить её повторно. "
+                    "Для «через N минут/часов/дней» всегда используй prepare_relative_reminder: "
+                    "часовой пояс не нужен, не вычисляй дату самостоятельно. "
+                    "Только для календарного местного времени без сохранённой зоны попроси "
+                    "открыть /timezone и написать текущее местное время ЧЧ:ММ. "
                     "Не угадывай зону по профилю или городу. "
                 )
                 if not definitions:
@@ -107,7 +134,13 @@ class Agent:
                         "MCP недоступен: сообщи об этом при запросе погоды, "
                         "расписания или напоминания."
                     )
-                history = [{"role": "system", "content": instructions}, *messages]
+                # Fresh trusted state must follow old refusals/profile context, immediately before
+                # the current user request. Never let dialogue history supply timezone state.
+                history = [
+                    *messages[:-1],
+                    {"role": "system", "content": instructions},
+                    *messages[-1:],
+                ]
                 calls_used = 0
                 for round_index in range(3):
                     pending_round = time.monotonic()
@@ -128,7 +161,9 @@ class Agent:
                         state.update(action="limit", status="limit")
                         break
                     if len(calls) > 1 and any(
-                        c.name in {"add_reminder", "request_clarification"} for c in calls
+                        c.name
+                        in {"add_reminder", "prepare_relative_reminder", "request_clarification"}
+                        for c in calls
                     ):
                         result = Generation(
                             True, "Пришли одну задачу для напоминания или уточнения за сообщение."
@@ -149,27 +184,49 @@ class Agent:
                             state.update(action="clarification", status="not_called")
                             await decide()
                             return AgentOutcome(Generation(True, question), rounds=rounds)
-                        if call.name not in INPUTS:
+                        relative = call.name == "prepare_relative_reminder"
+                        if call.name not in INPUTS and not relative:
                             raise ValueError("Unknown tool")
                         state.update(
-                            action="tool", tool=call.name, arguments=call.arguments, status="error"
+                            action="tool",
+                            tool="add_reminder" if relative else call.name,
+                            arguments=call.arguments,
+                            status="error",
                         )
-                        args = INPUTS[call.name].model_validate(call.arguments).model_dump()
-                        state.update(action="tool", tool=call.name, arguments=args, status="error")
-                        if call.name == "add_reminder":
-                            if not zone:
-                                raise ReminderInputError(
-                                    "Сначала задай часовой пояс: /timezone Europe/Moscow."
+                        if relative:
+                            request = RelativeReminder.model_validate(call.arguments)
+                            proposal_zone = zone or "UTC"
+                            args = {
+                                "text": request.text,
+                                "remind_at": (
+                                    self.reminders.clock()
+                                    + timedelta(seconds=request.delay_seconds)
                                 )
-                            from datetime import datetime
-
+                                .astimezone(timezone(proposal_zone))
+                                .isoformat(),
+                            }
+                        else:
+                            args = INPUTS[call.name].model_validate(call.arguments).model_dump()
+                            proposal_zone = zone
+                        state.update(
+                            action="tool",
+                            tool="add_reminder" if relative else call.name,
+                            arguments=args,
+                            status="error",
+                        )
+                        if call.name == "add_reminder" or relative:
+                            if not proposal_zone:
+                                raise ReminderInputError(
+                                    "Открой /timezone и напиши текущее местное время ЧЧ:ММ."
+                                )
                             wall = datetime.fromisoformat(args["remind_at"]).astimezone(
-                                timezone(zone)
+                                timezone(proposal_zone)
                             )
                             # Do not guess an ambiguous local time in a natural-language request.
-                            local_instant(wall.replace(tzinfo=None), zone)
+                            if not relative:
+                                local_instant(wall.replace(tzinfo=None), proposal_zone)
                             proposal = await self.reminders.propose(
-                                owner, source_key, zone=zone, **args
+                                owner, source_key, zone=proposal_zone, **args
                             )
                             state["status"] = "awaiting_confirmation"
                             await decide()

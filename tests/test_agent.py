@@ -38,6 +38,66 @@ async def test_plain_answer_uses_one_round_and_no_mcp():
     assert reminders.decision.call_args.kwargs["action"] == "answer"
 
 
+async def test_saved_timezone_overrides_stale_refusals_at_current_request():
+    call = ToolCall("a", "add_reminder", {"text": "Test", "remind_at": "2026-10-23T10:00:00+03:00"})
+    agent, llm, tools, reminders = fixture([Generation(True, tool_calls=(call,))])
+    reminders.get_timezone.return_value = "Europe/Moscow"
+    reminders.propose.return_value = {"id": uuid4()}
+    outcome = await agent.run(
+        [
+            {"role": "system", "content": "Base instructions"},
+            {"role": "assistant", "content": "Зона не сохранена, пришлите /timezone."},
+            {"role": "user", "content": "Напомни завтра в 10"},
+        ],
+        "model",
+        0.3,
+        1500,
+        (1, 1),
+        "telegram:2",
+    )
+    assert outcome.proposal is not None
+    history = llm.generate.call_args.args[0]
+    assert history[2]["role"] == "system"
+    assert "Сохранённая зона: Europe/Moscow" in history[2]["content"]
+    assert history[3]["role"] == "user"
+    reminders.propose.assert_awaited_once_with(
+        (1, 1), "telegram:2", zone="Europe/Moscow", **call.arguments
+    )
+    tools.call.assert_not_awaited()
+
+
+async def test_relative_reminder_needs_no_timezone_and_python_computes_exact_delay():
+    call = ToolCall(
+        "a", "prepare_relative_reminder", {"text": "Выключить чайник", "delay_seconds": 300}
+    )
+    agent, _, tools, reminders = fixture([Generation(True, tool_calls=(call,))])
+    reminders.get_timezone.return_value = None
+    reminders.propose.return_value = {"id": uuid4()}
+    assert (await run(agent)).proposal is not None
+    reminders.propose.assert_awaited_once_with(
+        (1, 1),
+        "telegram:1",
+        zone="UTC",
+        text="Выключить чайник",
+        remind_at="2026-10-22T00:05:00+00:00",
+    )
+    tools.call.assert_not_awaited()
+    assert reminders.decision.call_args.kwargs["tool"] == "add_reminder"
+
+
+async def test_relative_reminder_rejects_invalid_delay_and_owner_injection():
+    for args in (
+        {"text": "Test", "delay_seconds": -1},
+        {"text": "Test", "delay_seconds": True},
+        {"text": "Test", "delay_seconds": 300, "user_id": 2},
+    ):
+        call = ToolCall("a", "prepare_relative_reminder", args)
+        agent, _, tools, reminders = fixture([Generation(True, tool_calls=(call,))])
+        assert not (await run(agent)).generation.ok
+        reminders.propose.assert_not_awaited()
+        tools.call.assert_not_awaited()
+
+
 async def test_two_mcp_calls_three_llm_rounds_then_tools_disabled():
     agent, llm, tools, _ = fixture(
         [

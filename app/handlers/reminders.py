@@ -15,7 +15,13 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.mcp.client import ToolUnavailable
-from app.reminder_time import ReminderInputError, local_instant, reminder_instant, timezone
+from app.reminder_time import (
+    ReminderInputError,
+    local_instant,
+    reminder_instant,
+    timezone,
+    timezone_from_clock,
+)
 from app.reminders import ReminderUnavailable
 from app.ui import BUTTONS, REMINDERS
 
@@ -75,7 +81,7 @@ async def show_list(message, actor, reminders, page=0):
     page = max(0, min(page, max(0, (len(rows) - 1) // 5)))
     selected = rows[page * 5 : page * 5 + 5]
     lines = ["⏰ Напоминания", f"Часовой пояс: {zone or 'не задан'}"]
-    buttons = [[("Создать", "rm:new"), ("Часовой пояс", "rm:zone")]]
+    buttons = [[("Создать", "rm:new"), ("Моё время", "rm:zone")]]
     for index, row in enumerate(selected, page * 5 + 1):
         local = row["remind_at"].astimezone(timezone(row["timezone"]))
         status = {
@@ -110,20 +116,37 @@ async def open_panel(message: Message, state: FSMContext, reminders):
 
 
 @safe_message
-async def timezone_command(message: Message, command: CommandObject, reminders):
+async def timezone_command(
+    message: Message, command: CommandObject, reminders, state: FSMContext = None
+):
     if not message.from_user:
         return
     if command.args:
         try:
-            await reminders.set_timezone(message.from_user.id, command.args.strip())
+            value = command.args.strip()
+            zone = (
+                value
+                if "/" in value or value.startswith("UTC")
+                else timezone_from_clock(value, reminders.clock())
+            )
+            await reminders.set_timezone(message.from_user.id, zone)
+            if state is not None:
+                await state.clear()
         except ReminderInputError as error:
             await message.answer(str(error), parse_mode=None)
             return
     zone = await reminders.get_timezone(message.from_user.id)
-    text = "Часовой пояс не задан. Пример: /timezone Europe/Moscow"
+    text = "Местное время пока не настроено."
     if zone:
         local = reminders.clock().astimezone(timezone(zone))
-        text = f"Часовой пояс: {zone}\nСейчас: {local:%Y-%m-%d %H:%M}"
+        text = f"Сейчас у тебя: {local:%Y-%m-%d %H:%M} ({zone})."
+    if not command.args:
+        if state is not None:
+            await state.clear()
+            await state.set_state(Input.zone)
+        text += "\nНапиши, сколько у тебя сейчас времени, в формате ЧЧ:ММ. Выход: /cancel."
+    elif zone and zone.startswith("UTC") and zone != "UTC":
+        text += "\nСмещение сохранено. При переводе часов или поездке настрой время заново."
     await message.answer(text, parse_mode=None)
 
 
@@ -150,14 +173,15 @@ async def action(callback: CallbackQuery, state: FSMContext, reminders, tools=No
             await state.clear()
             await state.set_state(Input.zone)
             await message.answer(
-                "Укажи пояс IANA, например Europe/Moscow. Выход: /cancel.", parse_mode=None
+                "Сколько у тебя сейчас времени? Напиши ЧЧ:ММ, например 18:35. Выход: /cancel.",
+                parse_mode=None,
             )
         elif command == "new":
             await state.clear()
             if not await reminders.get_timezone(actor):
                 await message.answer(
-                    "Сначала задай часовой пояс кнопкой ниже.",
-                    reply_markup=keyboard([[("Часовой пояс", "rm:zone")]]),
+                    "Сначала настрой местное время кнопкой ниже.",
+                    reply_markup=keyboard([[("Моё время", "rm:zone")]]),
                     parse_mode=None,
                 )
                 return
@@ -236,9 +260,9 @@ async def input_value(message: Message, state: FSMContext, reminders):
     current = await state.get_state()
     try:
         if current == Input.zone.state:
-            await reminders.set_timezone(actor, value)
-            await state.clear()
-            await timezone_command(message, CommandObject(command="timezone"), reminders)
+            await timezone_command(
+                message, CommandObject(command="timezone", args=value), reminders, state
+            )
         elif current == Input.text.state:
             if not 1 <= len(value) <= 500:
                 raise ReminderInputError("Нужно от 1 до 500 символов.")

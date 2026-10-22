@@ -100,7 +100,7 @@ async def test_timezone_required_and_tools_discovery_is_not_hardcoded():
     _, dispatcher, reminders, tools = context
     reminders.get_timezone.return_value = None
     messages = await feed(context, callback="rm:new")
-    assert "Сначала задай часовой пояс" in messages[0].text
+    assert "Сначала настрой местное время" in messages[0].text
     reminders.propose.assert_not_awaited()
     from types import SimpleNamespace
 
@@ -117,4 +117,32 @@ async def test_database_failure_has_safe_visible_reply_without_private_error_det
     messages = await feed(context, text=REMINDERS)
     assert messages[0].text == "Не удалось обработать действие. Попробуй позже."
     assert "PRIVATE_DATABASE_DETAILS" not in caplog.text
+    await dispatcher.storage.close()
+
+
+async def test_clock_setup_persists_offset_once_and_leaves_input_state():
+    context = fixture()
+    bot, dispatcher, reminders, _ = context
+    reminders.clock = lambda: datetime(2026, 10, 22, 22, 20, tzinfo=UTC)
+    values = {}
+
+    async def save(actor, zone):
+        values[actor] = zone
+
+    reminders.set_timezone.side_effect = save
+    reminders.get_timezone.side_effect = lambda actor: values.get(actor)
+    prompt = await feed(context, text="/timezone")
+    assert "сколько у тебя сейчас времени" in prompt[0].text
+    saved = await feed(context, text="01:20")
+    assert "2026-10-23 01:20" in saved[0].text
+    assert values == {1: "UTC+03:00"}
+    reminders.set_timezone.assert_awaited_once_with(1, "UTC+03:00")
+    state = dispatcher.fsm.get_context(bot=bot, chat_id=1, user_id=1)
+    assert await state.get_state() is None
+    # Legacy command remains usable, immediately clears an existing input state.
+    await feed(context, callback="rm:zone")
+    saved = await feed(context, text="/timezone Europe/Moscow")
+    assert "Europe/Moscow" in saved[0].text
+    assert values[1] == "Europe/Moscow"
+    assert await state.get_state() is None
     await dispatcher.storage.close()

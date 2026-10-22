@@ -250,7 +250,7 @@ async def test_agent_uses_bound_connection_and_accounts_each_round_even_with_unk
     try:
         await migrate(pool)
         reminders = Reminders(pool)
-        await reminders.set_timezone(1, "UTC")
+        await reminders.set_timezone(1, "UTC+03:00")
         tools = AsyncMock()
         tools.discovered_tools = [
             SimpleNamespace(name=name, description=name, input_schema=model.model_json_schema())
@@ -280,6 +280,10 @@ async def test_agent_uses_bound_connection_and_accounts_each_round_even_with_unk
                 (1, 1), "Synthetic schedule question", source_key="telegram:1"
             )
         assert reply.ok and reply.text == "No lessons"
+        assert any(
+            message["role"] == "system" and "Сохранённая зона: UTC+03:00" in message["content"]
+            for message in llm.generate.call_args.args[0]
+        )
         summary = await operations.summary(datetime(1970, 1, 1, tzinfo=UTC))
         assert summary["requests"] == 2 and summary["priced"] == 1
         assert summary["cost_usd"] == Decimal("0.001")
