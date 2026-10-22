@@ -28,6 +28,7 @@ from app.retention import maintenance
 from app.schema import migrate
 from app.telegram import create_bot
 from app.temperature import TemperatureRepository, TemperatureService
+from app.update_diagnostics import UpdateDiagnostics
 
 logger = logging.getLogger("app")
 
@@ -93,6 +94,7 @@ async def run(settings: Settings) -> None:
             settings=settings,
         )
         dispatcher = Dispatcher()
+        dispatcher.update.outer_middleware(UpdateDiagnostics())
         temperature = TemperatureService(
             TemperatureRepository(state.pool), operations, assistant.llm, settings
         )
