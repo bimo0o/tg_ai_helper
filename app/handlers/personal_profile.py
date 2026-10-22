@@ -5,7 +5,13 @@ import uuid
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    LinkPreviewOptions,
+    Message,
+)
 from aiogram.utils.chat_action import ChatActionSender
 
 from app.admin import DENIED
@@ -46,6 +52,7 @@ async def show(message, actor, profiles):
             ]
         ),
         parse_mode=None,
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
     )
 
 
@@ -144,6 +151,7 @@ async def description(message: Message, state: FSMContext, personal_profiles: Pe
             "Сохранять только после подтверждения; кнопка действует 5 минут.",
             reply_markup=keyboard([[("Сохранить", f"pm:confirm:{token}"), ("Отмена", "pm:open")]]),
             parse_mode=None,
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
     except Exception:
         if (await state.get_data()).get("generation") == token:

@@ -109,6 +109,8 @@ async def test_personal_profile_requires_current_owner_confirmation():
     methods = await send("Я учу Python, люблю примеры", user_id=2)
     confirm = methods[-1].reply_markup.inline_keyboard[0][0].callback_data
     assert confirm.startswith("pm:confirm:")
+    assert methods[-1].parse_mode is None
+    assert methods[-1].link_preview_options.is_disabled
     assert await service.personal_profiles.get(2) == ""
     await send(callback=confirm, user_id=1)
     assert await service.personal_profiles.get(1) == ""
@@ -156,6 +158,14 @@ async def test_personal_profile_callbacks_cannot_read_or_edit_another_private_ch
         assert methods[0].text == DENIED
         assert len(methods) == 1
     assert await service.personal_profiles.get(1) == "private profile"
+
+
+async def test_personal_profile_links_do_not_generate_automatic_previews():
+    send, service, _, _ = await interface()
+    await service.personal_profiles.save(1, "Интересы: https://example.com/?marker=PROFILE_TEST")
+    methods = await send(callback="pm:open")
+    assert methods[-1].parse_mode is None
+    assert methods[-1].link_preview_options.is_disabled
 
 
 async def test_start_shows_persistent_keyboard_and_admin_button_only_to_owner():
