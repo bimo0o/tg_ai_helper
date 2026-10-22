@@ -4,7 +4,7 @@
 - [x] Record project rules, contracts, observable outcomes and delivery tradeoffs.
 - [x] Pin official MCP SDK and compatible dependencies; validate API locally and document choices.
 - [x] Implement IANA/date validation and PostgreSQL action/reminder/audit schema.
-- [ ] Verify duplicate updates/confirmations, owner isolation and expiry on real PostgreSQL.
+- [x] Verify duplicate updates/confirmations, owner isolation and expiry on real PostgreSQL.
 - [ ] Implement stdio MCP server/client, discovery, schemas, signed write context and output checks.
 - [ ] Add confirmed reminder creation, list, cancellation and timezone UI.
 - [ ] Add durable delivery worker and tests for late, blocked, unknown and interrupted delivery.
