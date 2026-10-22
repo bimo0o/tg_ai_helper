@@ -66,6 +66,9 @@ async def test_manual_creation_previews_before_mcp_and_binds_confirmed_owner():
     assert (await feed(context, text=REMINDERS))[0].text.startswith("⏰ Напоминания")
     await feed(context, callback="rm:new")
     await feed(context, text="Synthetic task")
+    rejected = await feed(context, text="2030-01-10")
+    assert "и дату, и время" in rejected[0].text
+    reminders.propose.assert_not_awaited()
     messages = await feed(context, text="2030-01-10 10:00")
     assert "Пока ничего не запланировано" in messages[0].text
     tools.call.assert_not_awaited()

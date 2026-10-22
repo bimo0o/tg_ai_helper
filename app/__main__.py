@@ -91,8 +91,8 @@ async def run(settings: Settings) -> None:
             operations,
             profiles,
             personal_profiles,
-            Agent(None, tools, reminders),
         )
+        assistant.agent = Agent(assistant.llm, tools, reminders)
         admin = AdminService(
             operations,
             BillingClient(

@@ -235,6 +235,8 @@ async def input_value(message: Message, state: FSMContext, reminders):
             zone = await reminders.get_timezone(actor)
             if not zone:
                 raise ReminderInputError("Сначала укажи часовой пояс через /timezone.")
+            if "T" not in value and " " not in value:
+                raise ReminderInputError("Укажи и дату, и время. Пример: 2030-01-10 15:30.")
             parsed = datetime.fromisoformat(value)
             instant = (
                 reminder_instant(value, zone, reminders.clock())

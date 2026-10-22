@@ -130,3 +130,20 @@ async def test_overall_deadline_is_enforced_with_safe_error_and_unknown_cost(mon
     assert outcome.generation.error_kind == "timeout"
     assert len(outcome.rounds) == 1 and outcome.rounds[0][0].cost_usd is None
     assert reminders.decision.call_args.kwargs["action"] == "error"
+
+
+async def test_ambiguous_weather_requires_user_choice_without_another_model_call():
+    call = ToolCall("a", "get_weather", {"city": "Test"})
+    agent, llm, tools, reminders = fixture([Generation(True, tool_calls=(call,))])
+    tools.call.return_value = {
+        "status": "ambiguous",
+        "places": [
+            {"city": "Test", "country": "A", "region": "North"},
+            {"city": "Test", "country": "B", "region": "South"},
+        ],
+    }
+    outcome = await run(agent)
+    assert "Test, A, North" in outcome.generation.text
+    assert "Test, B, South" in outcome.generation.text
+    assert tools.call.await_count == 1 and llm.generate.await_count == 1
+    assert reminders.decision.call_args.kwargs["action"] == "clarification"

@@ -41,8 +41,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.WARNING)  # stderr only: stdout is the MCP protocol.
     try:
         asyncio.run(run())
-    except Exception:
+    except Exception as error:
         logging.getLogger(__name__).error(
-            "MCP server startup failed; no configuration values logged"
+            "MCP server startup failed kind=%s; no configuration values logged",
+            type(error).__name__,
         )
         raise SystemExit(1) from None
