@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import csv
 import json
-import re
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +13,8 @@ from aiohttp import ClientSession
 from app.assistant import Assistant
 from app.config import ConfigError, Settings
 from app.db import create_pool
+from app.experiment_spec import PROMPT
+from app.experiment_spec import follows_format as follows_format
 from app.llm import LLMClient
 from app.logging_setup import configure_logging
 from app.prompts import instruction_messages
@@ -21,11 +22,6 @@ from app.repository import Repository
 from app.schema import migrate
 
 OWNER = (-1, -1)
-PROMPT = (
-    "Объясни разницу между списком и кортежем в Python начинающему студенту. "
-    "Ответь ровно тремя непустыми строками, пронумерованными 1., 2., 3.; "
-    "каждый пункт — одно или два предложения. Не добавляй вступление и заключение."
-)
 
 
 @dataclass(frozen=True)
@@ -39,14 +35,6 @@ class ExperimentRow:
     completion_tokens: int | None
     total_tokens: int | None
     answer: str
-
-
-def follows_format(text: str) -> bool:
-    lines = text.strip().splitlines()
-    return len(lines) == 3 and all(
-        re.fullmatch(rf"{number}\.\s+\S.*", line) is not None
-        for number, line in enumerate(lines, 1)
-    )
 
 
 def write_results(directory: Path, rows: list[ExperimentRow], metadata: dict) -> None:

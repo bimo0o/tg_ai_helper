@@ -5,7 +5,6 @@ import copy
 import html
 import json
 import logging
-import re
 import time
 import uuid
 from datetime import UTC, datetime
@@ -13,15 +12,12 @@ from decimal import Decimal
 
 import asyncpg
 
+from app.experiment_spec import PROMPT as LAB_PROMPT
+from app.experiment_spec import follows_format
 from app.llm import TEMPERATURES
 from app.prompts import instruction_messages
 
 logger = logging.getLogger(__name__)
-LAB_PROMPT = (
-    "Объясни разницу между списком и кортежем в Python начинающему студенту. "
-    "Ответь ровно тремя непустыми строками, пронумерованными 1., 2., 3.; "
-    "каждый пункт — одно или два предложения. Не добавляй вступление и заключение."
-)
 
 
 class TemperatureRepository:
@@ -141,6 +137,9 @@ class TemperatureService:
             "music_profile": None,
             "temperatures": list(TEMPERATURES),
             "repeats": 3,
+            "format_criterion": "three_numbered_lines"
+            if prompt == LAB_PROMPT and mode == "study"
+            else None,
             "rows": [],
             "limitations": "Temperature does not guarantee different answers. "
             "Provider routing and model nondeterminism can also affect results.",
@@ -217,15 +216,12 @@ class TemperatureService:
                             else None,
                             "finish_reason": result.finish_reason,
                             "truncated": result.truncated,
-                            "format_ok": (
-                                result.ok
-                                and len(result.text.strip().splitlines()) == 3
-                                and all(
-                                    re.fullmatch(rf"{n}\.\s+\S.*", line)
-                                    for n, line in enumerate(result.text.strip().splitlines(), 1)
-                                )
+                            "format_ok": (result.ok and follows_format(result.text))
+                            if data.get(
+                                "format_criterion",
+                                "three_numbered_lines" if data["mode"] == "study" else None,
                             )
-                            if data["prompt"] == LAB_PROMPT and data["mode"] == "study"
+                            == "three_numbered_lines"
                             else None,
                         }
                     )

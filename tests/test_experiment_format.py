@@ -6,6 +6,17 @@ import pytest
 from scripts.experiment import ExperimentRow, follows_format, write_results
 
 
+def test_admin_and_cli_share_the_analogy_prompt_and_format_checker():
+    from app.experiment_spec import PROMPT
+    from app.temperature import LAB_PROMPT
+    from scripts.experiment import PROMPT as CLI_PROMPT
+
+    assert LAB_PROMPT == CLI_PROMPT == PROMPT
+    assert "через одну бытовую аналогию" in PROMPT
+    assert "коробками, контейнерами или покупками" in PROMPT
+    assert "кортеж может содержать изменяемый объект" in PROMPT
+
+
 @pytest.mark.parametrize(
     "text,expected",
     [
