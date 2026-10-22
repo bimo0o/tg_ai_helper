@@ -22,6 +22,9 @@ async def purge(pool, settings: Settings) -> None:
             settings.music_profile_retention_days,
         )
         await connection.execute("DELETE FROM temperature_experiments WHERE expires_at < now()")
+        await connection.execute(
+            "DELETE FROM personal_profiles WHERE last_used_at < now()-interval '180 days'"
+        )
 
 
 async def maintenance(pool, settings: Settings) -> None:

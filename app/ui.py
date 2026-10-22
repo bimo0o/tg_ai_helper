@@ -31,6 +31,7 @@ WELCOME = (
     "📚 Учёба — программирование\n"
     "🌐 Перевод — укажи целевой язык в сообщении\n\n"
     "В профиле можно сохранить DAW и плагины, в настройках — изменить вариативность ответов. "
+    "Раздел «Обо мне» хранит краткие предпочтения для персонализации. "
     "«Новый диалог» очищает историю с подтверждением, сохраняя профиль и настройки.\n"
     "Если режим ещё не выбран, включена «Учёба». Команды также работают."
 )
@@ -64,6 +65,7 @@ def back_keyboard() -> InlineKeyboardMarkup:
 def profile_keyboard() -> InlineKeyboardMarkup:
     fields = [button(label, "field:" + key) for key, label in FIELDS.items()]
     rows = [fields[index : index + 2] for index in range(0, len(fields), 2)]
+    rows.insert(0, [InlineKeyboardButton(text="Обо мне · персонализация", callback_data="pm:open")])
     rows.extend([[button("Удалить профиль", "profile_clear")], [button("В меню", "home")]])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

@@ -14,6 +14,7 @@ class MemoryPool:
         self.model = None
         self.events = {}
         self.profiles = {}
+        self.personal = {}
 
     @asynccontextmanager
     async def acquire(self):
@@ -25,6 +26,19 @@ class MemoryPool:
 
     async def execute(self, query, *args):
         self.calls.append((query, args))
+        if query.startswith("DELETE FROM personal_profiles WHERE last_used_at"):
+            self.personal = {
+                key: row
+                for key, row in self.personal.items()
+                if row["last_used_at"] >= datetime.now(UTC) - timedelta(days=180)
+            }
+            return
+        if query.startswith("DELETE FROM personal_profiles WHERE user_id"):
+            self.personal.pop(args[0], None)
+            return
+        if query.startswith("INSERT INTO personal_profiles"):
+            self.personal[args[0]] = {"summary": args[1], "last_used_at": datetime.now(UTC)}
+            return
         if query == "DELETE FROM temperature_experiments WHERE expires_at < now()":
             return
         if query.startswith("DELETE FROM messages WHERE created_at"):
@@ -198,6 +212,12 @@ class MemoryPool:
 
     async def fetchval(self, query, *args):
         self.calls.append((query, args))
+        if query.startswith("UPDATE personal_profiles"):
+            row = self.personal.get(args[0])
+            if row is None or row["last_used_at"] < datetime.now(UTC) - timedelta(days=180):
+                return None
+            row["last_used_at"] = datetime.now(UTC)
+            return row["summary"]
         if query.startswith("SELECT pg_try_advisory_xact_lock"):
             return True
         if query.startswith("UPDATE music_profiles"):

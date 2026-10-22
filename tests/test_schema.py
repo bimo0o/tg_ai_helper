@@ -9,6 +9,7 @@ from app.schema import (
     GENERAL_MODES_DDL,
     MODEL_DDL,
     NO_LIMITS_DDL,
+    PERSONAL_PROFILE_DDL,
     POLICY_DDL,
     SCHEMA_VERSION,
     TEMPERATURE_DDL,
@@ -114,4 +115,14 @@ async def test_existing_database_adds_experiment_storage_without_rewriting_dialo
     assert connection.execute.call_args_list[3].args == (
         "INSERT INTO schema_migrations (version) VALUES ($1)",
         8,
+    )
+
+
+async def test_existing_experiments_database_adds_personal_profiles_only():
+    pool, connection, _ = pool_with_version(8)
+    await migrate(pool)
+    assert connection.execute.call_args_list[2].args == (PERSONAL_PROFILE_DDL,)
+    assert connection.execute.call_args_list[3].args == (
+        "INSERT INTO schema_migrations (version) VALUES ($1)",
+        9,
     )

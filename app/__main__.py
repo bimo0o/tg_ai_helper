@@ -15,12 +15,14 @@ from app.handlers.commands import create_router as commands_router
 from app.handlers.interface import create_router as interface_router
 from app.handlers.messages import create_router as messages_router
 from app.handlers.music import create_router as music_router
+from app.handlers.personal_profile import create_router as personal_profile_router
 from app.handlers.temperature import create_router as temperature_router
 from app.health import HealthState, start_health_server
 from app.llm import LLMClient
 from app.logging_setup import configure_logging
 from app.music_profile import MusicProfiles
 from app.operations import OperationsRepository
+from app.personal_profile import PersonalProfiles
 from app.repository import Repository
 from app.retention import maintenance
 from app.schema import migrate
@@ -55,6 +57,17 @@ async def run(settings: Settings) -> None:
         repository = Repository(state.pool, retention_days=settings.history_retention_days)
         operations = OperationsRepository(state.pool)
         profiles = MusicProfiles(state.pool, settings.music_profile_retention_days)
+        personal_profiles = PersonalProfiles(
+            state.pool,
+            LLMClient(
+                llm_session,
+                settings.llm_base_url,
+                settings.llm_api_key,
+                settings.llm_timeout_seconds,
+            ),
+            operations,
+            settings,
+        )
         assistant = Assistant(
             repository,
             LLMClient(
@@ -66,6 +79,7 @@ async def run(settings: Settings) -> None:
             settings,
             operations,
             profiles,
+            personal_profiles,
         )
         admin = AdminService(
             operations,
@@ -83,6 +97,7 @@ async def run(settings: Settings) -> None:
             TemperatureRepository(state.pool), operations, assistant.llm, settings
         )
         dispatcher.include_router(temperature_router())
+        dispatcher.include_router(personal_profile_router())
         dispatcher.include_router(admin_router())
         dispatcher.include_router(interface_router())
         dispatcher.include_router(music_router())
@@ -99,6 +114,7 @@ async def run(settings: Settings) -> None:
                 operations=operations,
                 admin=admin,
                 profiles=profiles,
+                personal_profiles=personal_profiles,
                 temperature=temperature,
                 allowed_updates=dispatcher.resolve_used_update_types(),
                 close_bot_session=False,

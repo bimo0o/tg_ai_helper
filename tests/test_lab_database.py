@@ -7,6 +7,7 @@ import pytest
 from app.db import create_pool
 from app.music_profile import MusicProfiles
 from app.operations import MODEL_OPTIONS, OperationsRepository
+from app.personal_profile import PersonalProfiles
 from app.repository import DialogueBusy, Repository, UserSettings
 from app.retention import purge
 from app.schema import ADMIN_DDL, DDL, SCHEMA_VERSION, migrate
@@ -26,6 +27,7 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
         await migrate(pool)
         assert await pool.fetchval("SELECT count(*) FROM schema_migrations") == SCHEMA_VERSION
         repo = Repository(pool)
+        await PersonalProfiles(pool, None, None, settings).save(1, "Люблю краткие примеры")
         async with repo.locked((1, 1)):
             with pytest.raises(DialogueBusy):
                 async with Repository(pool).locked((1, 1)):
@@ -50,6 +52,19 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
     try:
         await migrate(restored_pool)
         repo = Repository(restored_pool)
+        personal = PersonalProfiles(restored_pool, None, None, settings)
+        assert await personal.get(1) == "Люблю краткие примеры"
+        assert await personal.get(2) == ""
+        sql_probe = "'; DROP TABLE personal_profiles; --"
+        await personal.save(2, sql_probe)
+        assert await personal.get(2) == sql_probe
+        assert await restored_pool.fetchval("SELECT count(*) FROM personal_profiles") == 2
+        await personal.clear(2)
+        await restored_pool.execute(
+            "UPDATE personal_profiles SET last_used_at=now()-interval '181 days' WHERE user_id=$1",
+            1,
+        )
+        assert await personal.get(1) == ""
         assert (await repo.get_settings((3, 3))).mode == "web"
         assert len(await repo.get_history((3, 3), "web", 40, 8000)) == 2
         assert await repo.get_settings((1, 1)) == UserSettings("study", 0.7)
@@ -75,6 +90,7 @@ async def test_schema_and_dialogue_survive_pool_and_postgres_restart(database):
         )
         assert await profiles.get(2) == {}
         await purge(restored_pool, settings)
+        assert await restored_pool.fetchval("SELECT count(*) FROM personal_profiles") == 0
         assert await restored_pool.fetchval("SELECT count(*) FROM music_profiles") == 0
     finally:
         await restored_pool.close()

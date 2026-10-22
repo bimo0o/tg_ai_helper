@@ -7,6 +7,7 @@ from app.config import Settings
 from app.llm import Generation, LLMClient
 from app.music_profile import MusicProfiles
 from app.operations import OperationsRepository
+from app.personal_profile import PROFILE_BOUNDARY, personal_messages
 from app.prompts import instruction_messages, profile_messages
 from app.repository import BUSY_MESSAGE, DialogueBusy, Owner, Repository
 
@@ -50,12 +51,14 @@ class Assistant:
         settings: Settings,
         operations: OperationsRepository | None = None,
         profiles: MusicProfiles | None = None,
+        personal_profiles=None,
     ):
         self.repository = repository
         self.llm = llm
         self.settings = settings
         self.operations = operations
         self.profiles = profiles
+        self.personal_profiles = personal_profiles
 
     async def respond(self, owner: Owner, text: str, *, use_web: bool = False) -> Reply:
         if not text.strip():
@@ -74,6 +77,11 @@ class Assistant:
         api_started = False
         try:
             profile = {}
+            personal = ""
+            if self.personal_profiles is not None:
+                snapshot = await self.repository.get_settings(owner)
+                if snapshot.mode != "translate" or use_web:
+                    personal = await self.personal_profiles.get(owner[1])
             if self.profiles is not None:
                 snapshot = await self.repository.get_settings(owner)
                 if snapshot.mode == "music" and self.profiles is not None:
@@ -93,6 +101,19 @@ class Assistant:
                     reply = Reply("Web-поиск отключён в настройках бота.", error_kind="input")
                     return reply
                 context = profile_messages(profile) if mode == "music" else []
+                if mode != "translate":
+                    context = personal_messages(personal) + context
+                # Preserve whole profile messages that fit; never truncate the user's request.
+                available = self.settings.history_max_chars - len(text)
+                kept = []
+                for item in context:
+                    if (
+                        len(item["content"]) <= available
+                        and len(kept) < self.settings.history_max_messages - 1
+                    ):
+                        kept.append(item)
+                        available -= len(item["content"])
+                context = kept
                 profile_chars = sum(len(message["content"]) for message in context)
                 if profile_chars + len(text) > self.settings.history_max_chars:
                     context, profile_chars = [], 0
@@ -102,8 +123,11 @@ class Assistant:
                     self.settings.history_max_messages - 1 - len(context),
                     self.settings.history_max_chars - len(text) - profile_chars,
                 )
+                instructions = instruction_messages(mode, self.settings.max_output_tokens)
+                if context:
+                    instructions[0]["content"] += "\n\n" + PROFILE_BOUNDARY
                 messages = [
-                    *instruction_messages(mode, self.settings.max_output_tokens),
+                    *instructions,
                     *context,
                     *history,
                     {"role": "user", "content": text},

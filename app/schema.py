@@ -2,7 +2,7 @@
 
 import asyncpg
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 DDL = """
 CREATE TABLE IF NOT EXISTS user_settings (
     chat_id BIGINT NOT NULL,
@@ -102,6 +102,14 @@ CREATE UNIQUE INDEX temperature_one_running ON temperature_experiments (user_id)
     WHERE status='running';
 CREATE INDEX temperature_owner_created ON temperature_experiments (user_id, created_at DESC);
 """
+PERSONAL_PROFILE_DDL = """
+CREATE TABLE personal_profiles (
+    user_id BIGINT PRIMARY KEY,
+    summary TEXT NOT NULL CHECK (length(summary) BETWEEN 1 AND 700),
+    last_used_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX personal_profiles_last_used ON personal_profiles (last_used_at);
+"""
 MIGRATIONS = {
     1: DDL,
     2: ADMIN_DDL,
@@ -111,6 +119,7 @@ MIGRATIONS = {
     6: GENERAL_MODES_DDL,
     7: NO_LIMITS_DDL,
     8: TEMPERATURE_DDL,
+    9: PERSONAL_PROFILE_DDL,
 }
 
 

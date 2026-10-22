@@ -31,6 +31,7 @@ async def test_startup_wires_commands_before_text_and_closes_single_pool_and_ses
     await application.run(settings)
     assert [call.args[0].name for call in dispatcher.include_router.call_args_list] == [
         "temperature",
+        "personal_profile",
         "admin",
         "interface",
         "music",
