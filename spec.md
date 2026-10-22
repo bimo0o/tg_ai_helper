@@ -4,8 +4,9 @@
 
 Extend the existing bot with a stdio MCP server, agent routing, weather, a synthetic
 schedule, confirmed reminders, and actual Telegram delivery. Preserve existing modes.
-Reminder editing and recurrence are deferred. The original evaluation/lab2-routing.json
-has not been supplied: it must not be invented or replaced by a custom dataset.
+Reminder editing and recurrence are deferred. The user confirmed the original
+evaluation/lab2-routing.json will not be supplied. Keep official benchmark results
+unverified; an explicitly labeled authored supplementary dataset may be used for a separate experiment.
 
 ## Observable scenarios
 

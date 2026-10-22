@@ -16,3 +16,4 @@ experiment-results*/
 .idea/
 /docs/verification.md
 /docs/presentations/*-notes.md
+.evaluation/

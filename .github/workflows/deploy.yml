@@ -30,6 +30,10 @@ jobs:
             echo "=== Status ==="
             docker compose --profile cloud ps
             echo "=== MCP discovery check (read only) ==="
-            docker compose --profile cloud exec -T bot python -m app.mcp_probe --running
+            if ! docker compose --profile cloud exec -T bot python -m app.mcp_probe --running; then
+              echo "=== MCP session is unavailable after deployment ==="
+              docker compose --profile cloud logs --tail=80 bot || true
+              exit 1
+            fi
             echo "=== Last logs ==="
             docker compose --profile cloud logs --tail=50 bot

@@ -1,0 +1,19 @@
+{
+  "source": "authored-supplementary-not-official",
+  "reference_time": "2030-01-10T10:00:00+03:00",
+  "timezone": "Europe/Moscow",
+  "cases": [
+    {"id":"weather-1","prompt":"Какая сейчас погода в Париже, Франция?","expected_action":"get_weather","expected_arguments":[{"city":"Париж, Франция"},{"city":"Paris, France"},{"city":"Paris, FR"}]},
+    {"id":"weather-2","prompt":"Узнай текущую погоду в Берлине, Германия.","expected_action":"get_weather","expected_arguments":[{"city":"Берлин, Германия"},{"city":"Berlin, Germany"},{"city":"Berlin, DE"}]},
+    {"id":"weather-3","prompt":"Покажи текущую температуру и ветер в Москве, Россия.","expected_action":"get_weather","expected_arguments":[{"city":"Москва, Россия"},{"city":"Moscow, Russia"},{"city":"Moscow, RU"}]},
+    {"id":"schedule-1","prompt":"Покажи моё расписание на 2030-01-10.","expected_action":"get_schedule","expected_arguments":[{"date":"2030-01-10"}]},
+    {"id":"schedule-2","prompt":"Какие у меня занятия завтра?","expected_action":"get_schedule","expected_arguments":[{"date":"2030-01-11"}]},
+    {"id":"schedule-3","prompt":"Что у меня по расписанию 14 января 2030 года?","expected_action":"get_schedule","expected_arguments":[{"date":"2030-01-14"}]},
+    {"id":"reminder-1","prompt":"Напомни завтра в 09:00 проверить экспорт.","expected_action":"add_reminder","expected_arguments":[{"text":"проверить экспорт","remind_at":"2030-01-11T09:00:00+03:00"}]},
+    {"id":"reminder-2","prompt":"Напомни через 30 минут сохранить проект.","expected_action":"add_reminder","expected_arguments":[{"text":"сохранить проект","remind_at":"2030-01-10T10:30:00+03:00"}]},
+    {"id":"reminder-3","prompt":"Создай напоминание 15 января 2030 в 18:45: обновить плагины.","expected_action":"add_reminder","expected_arguments":[{"text":"обновить плагины","remind_at":"2030-01-15T18:45:00+03:00"}]},
+    {"id":"answer-1","prompt":"Объясни разницу между списком и кортежем Python в двух предложениях.","expected_action":"answer","expected_arguments":[]},
+    {"id":"answer-2","prompt":"Напиши одну рифмованную строку о музыке.","expected_action":"answer","expected_arguments":[]},
+    {"id":"clarify-1","prompt":"Напомни мне об этом.","expected_action":"clarification","expected_arguments":[]}
+  ]
+}

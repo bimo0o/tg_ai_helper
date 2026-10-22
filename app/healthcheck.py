@@ -2,10 +2,11 @@
 
 import argparse
 import json
+import os
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, build_opener
 
-from app.config import ConfigError, Settings
+from dotenv import dotenv_values
 
 
 def main() -> int:
@@ -13,17 +14,18 @@ def main() -> int:
     parser.add_argument("--env-file", default=".env")
     args = parser.parse_args()
     try:
-        settings = Settings.load(args.env_file)
+        # A readiness probe needs only its local HTTP port, not the entire Telegram framework.
+        values = {**dotenv_values(args.env_file, interpolate=False), **os.environ}
+        port = int(values.get("HEALTH_PORT") or "8080")
+        if not 1 <= port <= 65535:
+            raise ValueError
         # Системный HTTP_PROXY не должен перехватывать локальную проверку.
         with build_opener(ProxyHandler({})).open(
-            f"http://127.0.0.1:{settings.health_port}/health", timeout=5
+            f"http://127.0.0.1:{port}/health", timeout=5
         ) as response:
             body = json.load(response)
         if body.get("status") != "ok":
             raise ValueError
-    except ConfigError as exc:
-        print(str(exc))
-        return 1
     except (HTTPError, URLError, OSError, ValueError):
         print("Приложение не готово: проверьте запуск бота, подключение БД и логи.")
         return 1

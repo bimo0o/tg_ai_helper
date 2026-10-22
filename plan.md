@@ -10,7 +10,8 @@
 - [x] Add durable delivery worker and tests for late, blocked, unknown and interrupted delivery.
 - [x] Add weather, schedule and weekly resource with fixed endpoints/configured synthetic data.
 - [x] Add bounded native tool-calling loop, `/tools`, `/why`, safe audit and degraded MCP behavior.
-- [ ] Prepare evaluation runner; obtain original lab2-routing.json. Do not execute paid runs as agent.
+- [x] Prepare authored supplementary 12-case dataset and safe evaluation runner. Original will not be supplied.
+- [ ] User runs paid authored routing experiment; do not present it as the official benchmark.
 - [ ] Complete regression/CI, documentation, independent MCP inspection instructions and deployment.
 - [ ] User verifies live delivery and routing experiment; creates submission tag after acceptance.
 

@@ -196,3 +196,11 @@ def test_child_entrypoint_does_not_import_telegram_framework():
         'assert not any(name == "aiogram" or name.startswith("aiogram.") for name in sys.modules)'
     )
     subprocess.run([sys.executable, "-c", code], capture_output=True, check=True, timeout=30)
+
+
+def test_healthcheck_and_read_only_config_do_not_import_telegram_framework():
+    code = (
+        "import sys; import app.healthcheck; import app.config; "
+        'assert not any(name == "aiogram" or name.startswith("aiogram.") for name in sys.modules)'
+    )
+    subprocess.run([sys.executable, "-c", code], capture_output=True, check=True, timeout=30)

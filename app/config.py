@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from aiogram.utils.token import TokenValidationError, validate_token
 from dotenv import dotenv_values
 
 from app.reminder_time import ReminderInputError, timezone
@@ -86,6 +85,9 @@ class Settings:
     def load(
         cls, env_file: Path | str = ".env", *, environ: Mapping[str, str] | None = None
     ) -> "Settings":
+        # Only the actual bot configuration needs Telegram token validation. Read-only CLIs do not.
+        from aiogram.utils.token import TokenValidationError, validate_token
+
         values = {
             **dotenv_values(env_file, interpolate=False),
             **(os.environ if environ is None else environ),
