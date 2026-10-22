@@ -27,6 +27,18 @@ async def test_http_health_returns_503_then_200(unused_tcp_port):
                     "database": "ok",
                     "polling": "running",
                 }
+            async with session.get(f"http://127.0.0.1:{unused_tcp_port}/mcp-ready") as response:
+                assert response.status == 503
+            state.tools = Mock(discover=AsyncMock(return_value=[1, 2, 3]))
+            async with session.get(f"http://127.0.0.1:{unused_tcp_port}/mcp-ready") as response:
+                assert response.status == 200
+                assert await response.json() == {"mcp_ready": True, "tools": 3, "resources": 1}
+            state.tools.discover.side_effect = RuntimeError("private connection details")
+            async with session.get(f"http://127.0.0.1:{unused_tcp_port}/mcp-ready") as response:
+                assert response.status == 503
+                assert await response.json() == {"mcp_ready": False}
+            async with session.get(f"http://127.0.0.1:{unused_tcp_port}/health") as response:
+                assert response.status == 200
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)

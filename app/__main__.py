@@ -62,6 +62,7 @@ async def run(settings: Settings) -> None:
         await migrate(state.pool)
         reminders = Reminders(state.pool)
         tools = await connect_tools(settings)
+        state.tools = tools
         delivery_task = asyncio.create_task(delivery_worker(reminders, bot))
         maintenance_task = asyncio.create_task(maintenance(state.pool, settings))
         llm_session = ClientSession()

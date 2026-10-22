@@ -29,5 +29,7 @@ jobs:
             fi
             echo "=== Status ==="
             docker compose --profile cloud ps
+            echo "=== MCP discovery check (read only) ==="
+            docker compose --profile cloud exec -T bot python -m app.mcp_probe --running
             echo "=== Last logs ==="
             docker compose --profile cloud logs --tail=50 bot

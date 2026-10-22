@@ -24,7 +24,7 @@ class ToolClient:
         self._client = None
 
     async def __aenter__(self):
-        self._client = await Client(self.transport, read_timeout_seconds=18).__aenter__()
+        self._client = await Client(self.transport, read_timeout_seconds=30).__aenter__()
         return self
 
     async def __aexit__(self, *exc):
@@ -44,7 +44,7 @@ class ToolClient:
 
     async def discover(self) -> list:
         async with asyncio.timeout(10), self._connection() as client:
-            listing = await client.list_tools()
+            listing = await client.list_tools(cache_mode="bypass")
             tools = listing.tools
             if {tool.name for tool in tools} != set(INPUTS) or len(tools) != len(INPUTS):
                 raise ToolUnavailable("Unexpected tool discovery")
@@ -56,6 +56,9 @@ class ToolClient:
                     raise ToolUnavailable("Unexpected input contract")
                 if tool.output_schema != OUTPUTS[tool.name].model_json_schema():
                     raise ToolUnavailable("Unexpected output contract")
+            resources = await client.list_resources(cache_mode="bypass")
+            if [str(resource.uri) for resource in resources.resources] != [WEEK_URI]:
+                raise ToolUnavailable("Unexpected resource discovery")
             self.discovered_tools = tools
             return tools
 

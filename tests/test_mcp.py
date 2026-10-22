@@ -1,5 +1,6 @@
 import copy
 import json
+import subprocess
 import sys
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
@@ -187,3 +188,11 @@ async def test_startup_mcp_failure_is_optional_and_safely_logged(monkeypatch, ca
     assert await bootstrap.connect_tools(settings) is None
     host.__aexit__.assert_awaited_once()
     assert "PRIVATE_CONFIGURATION" not in caplog.text
+
+
+def test_child_entrypoint_does_not_import_telegram_framework():
+    code = (
+        "import sys; import app.mcp.__main__; "
+        'assert not any(name == "aiogram" or name.startswith("aiogram.") for name in sys.modules)'
+    )
+    subprocess.run([sys.executable, "-c", code], capture_output=True, check=True, timeout=30)

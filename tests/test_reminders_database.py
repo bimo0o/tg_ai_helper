@@ -216,6 +216,21 @@ async def test_actual_stdio_server_writes_only_confirmed_action_to_postgres(data
             assert sum(result["created"] for result in results) == 1
             assert len({result["id"] for result in results}) == 1
         assert await pool.fetchval("SELECT count(*) FROM reminders") == 1
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-m",
+            "app.mcp_probe",
+            env={**os.environ, **transport.env},
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        async with asyncio.timeout(45):
+            stdout, _ = await process.communicate()
+        import json
+
+        assert process.returncode == 0
+        assert json.loads(stdout)["mcp_ready"] is True
+        assert await pool.fetchval("SELECT count(*) FROM reminders") == 1
     finally:
         await pool.close()
 

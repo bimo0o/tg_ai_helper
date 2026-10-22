@@ -10,6 +10,7 @@ class HealthState:
     pool: asyncpg.Pool | None = None
     initialized: bool = False
     polling_task: asyncio.Task | None = None
+    tools: object | None = None
 
 
 async def health_result(state: HealthState) -> tuple[int, dict[str, str]]:
@@ -34,8 +35,19 @@ async def start_health_server(state: HealthState, port: int) -> web.AppRunner:
         status, body = await health_result(state)
         return web.json_response(body, status=status)
 
+    async def mcp_ready(_request: web.Request) -> web.Response:
+        if state.initialized and state.tools is not None:
+            try:
+                async with asyncio.timeout(12):
+                    listing = await state.tools.discover()
+                return web.json_response({"mcp_ready": True, "tools": len(listing), "resources": 1})
+            except Exception:
+                pass
+        return web.json_response({"mcp_ready": False}, status=503)
+
     app = web.Application()
     app.router.add_get("/health", health)
+    app.router.add_get("/mcp-ready", mcp_ready)
     runner = web.AppRunner(app)
     await runner.setup()
     try:

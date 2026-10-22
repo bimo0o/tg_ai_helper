@@ -1,9 +1,26 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
 import asyncpg
 
-from app.config import Settings
+if TYPE_CHECKING:
+    from app.config import Settings
 
 
-async def create_pool(settings: Settings) -> asyncpg.Pool:
+@dataclass(frozen=True)
+class DatabaseSettings:
+    """Minimal child-process settings; importing them never imports Telegram."""
+
+    postgres_password: str = field(repr=False)
+    postgres_host: str = "127.0.0.1"
+    postgres_port: int = 5432
+    postgres_db: str = "bot"
+    postgres_user: str = "bot"
+
+
+async def create_pool(settings: Settings | DatabaseSettings) -> asyncpg.Pool:
     # Небольшого пула достаточно для учебной ВМ. Таблицы добавляют студенты.
     pool = await asyncpg.create_pool(
         host=settings.postgres_host,
