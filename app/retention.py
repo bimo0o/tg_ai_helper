@@ -25,6 +25,22 @@ async def purge(pool, settings: Settings) -> None:
         await connection.execute(
             "DELETE FROM personal_profiles WHERE last_used_at < now()-interval '180 days'"
         )
+        await connection.execute(
+            "UPDATE reminder_actions SET status='expired' "
+            "WHERE status IN ('pending','confirmed') AND expires_at <= now()"
+        )
+        await connection.execute(
+            "DELETE FROM reminders WHERE finished_at < now()-interval '30 days' "
+            "AND status IN ('sent','unconfirmed','blocked','missed','cancelled')"
+        )
+        await connection.execute(
+            "DELETE FROM reminder_actions a WHERE created_at < now()-interval '30 days' "
+            "AND status IN ('executed','cancelled','expired') "
+            "AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.action_id=a.id)"
+        )
+        await connection.execute(
+            "DELETE FROM tool_audit WHERE created_at < now()-interval '90 days'"
+        )
 
 
 async def maintenance(pool, settings: Settings) -> None:

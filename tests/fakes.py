@@ -41,6 +41,16 @@ class MemoryPool:
             return
         if query == "DELETE FROM temperature_experiments WHERE expires_at < now()":
             return
+        if query.startswith(
+            (
+                "UPDATE reminder_actions SET status='expired'",
+                "DELETE FROM reminders WHERE finished_at",
+                "DELETE FROM reminder_actions a WHERE created_at",
+                "DELETE FROM tool_audit WHERE created_at",
+            )
+        ):
+            # This lab-1 fake has no reminder state; real retention is tested on PostgreSQL.
+            return
         if query.startswith("DELETE FROM messages WHERE created_at"):
             cutoff = datetime.now(UTC) - timedelta(days=args[0])
             self.messages = [row for row in self.messages if row["created_at"] >= cutoff]

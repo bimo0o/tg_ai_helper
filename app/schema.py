@@ -2,7 +2,7 @@
 
 import asyncpg
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 DDL = """
 CREATE TABLE IF NOT EXISTS user_settings (
     chat_id BIGINT NOT NULL,
@@ -110,6 +110,55 @@ CREATE TABLE personal_profiles (
 );
 CREATE INDEX personal_profiles_last_used ON personal_profiles (last_used_at);
 """
+REMINDERS_DDL = """
+CREATE TABLE reminder_timezones (
+    user_id BIGINT PRIMARY KEY,
+    timezone TEXT NOT NULL CHECK (length(timezone) BETWEEN 1 AND 100)
+);
+CREATE TABLE reminder_actions (
+    id UUID PRIMARY KEY,
+    chat_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    source_key TEXT NOT NULL CHECK (length(source_key) BETWEEN 1 AND 100),
+    text TEXT NOT NULL CHECK (length(text) BETWEEN 1 AND 500),
+    remind_at TIMESTAMPTZ NOT NULL,
+    timezone TEXT NOT NULL CHECK (length(timezone) BETWEEN 1 AND 100),
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'confirmed', 'executed', 'cancelled', 'expired')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + interval '5 minutes',
+    UNIQUE (chat_id, user_id, source_key)
+);
+CREATE TABLE reminders (
+    id UUID PRIMARY KEY,
+    action_id UUID NOT NULL UNIQUE REFERENCES reminder_actions (id),
+    chat_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    text TEXT NOT NULL CHECK (length(text) BETWEEN 1 AND 500),
+    remind_at TIMESTAMPTZ NOT NULL,
+    timezone TEXT NOT NULL CHECK (length(timezone) BETWEEN 1 AND 100),
+    status TEXT NOT NULL DEFAULT 'scheduled'
+        CHECK (status IN ('scheduled', 'sending', 'sent', 'unconfirmed',
+                          'blocked', 'missed', 'cancelled')),
+    claim_token UUID,
+    lease_until TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at TIMESTAMPTZ,
+    CHECK ((status='sending') = (claim_token IS NOT NULL AND lease_until IS NOT NULL))
+);
+CREATE INDEX reminders_due ON reminders (remind_at) WHERE status='scheduled';
+CREATE INDEX reminders_owner ON reminders (chat_id, user_id, remind_at);
+CREATE TABLE tool_audit (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    chat_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    tool TEXT NOT NULL CHECK (tool IN ('get_weather', 'get_schedule', 'add_reminder')),
+    outcome TEXT NOT NULL CHECK (outcome IN ('success', 'error', 'confirmation_required')),
+    duration_ms INTEGER NOT NULL CHECK (duration_ms >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX tool_audit_owner ON tool_audit (chat_id, user_id, created_at DESC);
+"""
 MIGRATIONS = {
     1: DDL,
     2: ADMIN_DDL,
@@ -120,6 +169,7 @@ MIGRATIONS = {
     7: NO_LIMITS_DDL,
     8: TEMPERATURE_DDL,
     9: PERSONAL_PROFILE_DDL,
+    10: REMINDERS_DDL,
 }
 
 
