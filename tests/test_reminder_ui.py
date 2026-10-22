@@ -108,3 +108,13 @@ async def test_timezone_required_and_tools_discovery_is_not_hardcoded():
     messages = await feed(context, text="/tools")
     assert "fixture_tool" in messages[0].text and "From MCP" in messages[0].text
     await dispatcher.storage.close()
+
+
+async def test_database_failure_has_safe_visible_reply_without_private_error_details(caplog):
+    context = fixture()
+    _, dispatcher, reminders, _ = context
+    reminders.list.side_effect = RuntimeError("PRIVATE_DATABASE_DETAILS")
+    messages = await feed(context, text=REMINDERS)
+    assert messages[0].text == "Не удалось обработать действие. Попробуй позже."
+    assert "PRIVATE_DATABASE_DETAILS" not in caplog.text
+    await dispatcher.storage.close()

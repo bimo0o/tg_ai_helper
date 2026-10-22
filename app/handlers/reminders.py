@@ -4,10 +4,11 @@ import json
 import logging
 import time
 from datetime import datetime
+from functools import wraps
 from uuid import UUID
 
 from aiogram import F, Router
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -19,6 +20,21 @@ from app.reminders import ReminderUnavailable
 from app.ui import BUTTONS, REMINDERS
 
 logger = logging.getLogger(__name__)
+
+
+def safe_message(handler):
+    @wraps(handler)
+    async def guarded(message, *args, **kwargs):
+        try:
+            return await handler(message, *args, **kwargs)
+        except TelegramAPIError:
+            # A failed response may already have been accepted by Telegram; do not resend blindly.
+            logger.warning("Reminder UI delivery not confirmed; no message content logged")
+        except Exception as error:
+            logger.warning("Reminder message failed kind=%s", type(error).__name__)
+            await message.answer("Не удалось обработать действие. Попробуй позже.", parse_mode=None)
+
+    return guarded
 
 
 class Input(StatesGroup):
@@ -86,12 +102,14 @@ async def show_list(message, actor, reminders, page=0):
     await message.answer("\n".join(lines), reply_markup=keyboard(buttons), parse_mode=None)
 
 
+@safe_message
 async def open_panel(message: Message, state: FSMContext, reminders):
     if message.from_user:
         await state.clear()
         await show_list(message, message.from_user.id, reminders)
 
 
+@safe_message
 async def timezone_command(message: Message, command: CommandObject, reminders):
     if not message.from_user:
         return
@@ -210,6 +228,7 @@ async def action(callback: CallbackQuery, state: FSMContext, reminders, tools=No
         await message.answer("Не удалось выполнить действие. Попробуй позже.", parse_mode=None)
 
 
+@safe_message
 async def input_value(message: Message, state: FSMContext, reminders):
     if not message.from_user or not message.text:
         return
@@ -293,6 +312,7 @@ async def tools_command(message: Message, tools=None):
         )
 
 
+@safe_message
 async def why_command(message: Message, reminders):
     if not message.from_user:
         return
