@@ -12,8 +12,8 @@ from decimal import Decimal
 
 import asyncpg
 
+from app.experiment_spec import ART_PROMPT, follows_format
 from app.experiment_spec import PROMPT as LAB_PROMPT
-from app.experiment_spec import follows_format
 from app.llm import TEMPERATURES
 from app.prompts import instruction_messages
 
@@ -138,7 +138,7 @@ class TemperatureService:
             "temperatures": list(TEMPERATURES),
             "repeats": 3,
             "format_criterion": "three_numbered_lines"
-            if prompt == LAB_PROMPT and mode == "study"
+            if (prompt, mode) in {(LAB_PROMPT, "study"), (ART_PROMPT, "chat")}
             else None,
             "rows": [],
             "limitations": "Temperature does not guarantee different answers. "
@@ -314,7 +314,7 @@ def export_html(experiment):
             f"<td>{'успех' if row['ok'] else escape(str(row['error_kind']))}</td></tr>"
         )
     parts.append(
-        "</table><p>Для лабораторного запроса формат — три нумерованные строки. "
+        "</table><p>Для готовых запросов формат — три нумерованные строки. "
         "Корректность содержания и полезность оцениваются вручную.</p>"
     )
     for row in data["rows"]:

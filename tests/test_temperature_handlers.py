@@ -55,6 +55,33 @@ async def test_preset_previews_paid_calls_and_requires_separate_start():
     assert f"temp:start:{last['id']}" in buttons
 
 
+async def test_art_preset_is_available_and_prepares_an_isolated_chat_experiment():
+    from app.experiment_spec import ART_PROMPT
+
+    test = service()
+    menu = await dispatch(test)
+    buttons = [
+        b.callback_data
+        for m in menu
+        if isinstance(m, SendMessage)
+        for row in m.reply_markup.inline_keyboard
+        for b in row
+    ]
+    assert "temp:art" in buttons and "temp:preset" in buttons
+    await dispatch(test, data="temp:art")
+    experiment = await test.get(10)
+    assert experiment["data"]["prompt"] == ART_PROMPT
+    assert experiment["data"]["mode"] == "chat"
+    assert experiment["data"]["format_criterion"] == "three_numbered_lines"
+    assert experiment["data"]["history"] == []
+    test.llm.generate.assert_not_awaited()
+    await test.run(10, experiment["id"], AsyncMock())
+    calls = test.llm.generate.call_args_list
+    assert len(calls) == 12
+    assert all(c.args[0] == calls[0].args[0] for c in calls)
+    assert calls[0].args[0][-1] == {"role": "user", "content": ART_PROMPT}
+
+
 async def test_report_delivered_as_files_and_cannot_be_exported_by_non_owner():
     test = service()
     key = await test.prepare(10)

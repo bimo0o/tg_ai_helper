@@ -13,6 +13,7 @@ from aiogram.types import (
 )
 
 from app.admin import DENIED
+from app.experiment_spec import ART_PROMPT
 from app.temperature import LAB_PROMPT, TemperatureService, export_html, export_json, summary
 from app.text import split_text
 from app.ui import BUTTONS
@@ -92,12 +93,14 @@ async def action(callback: CallbackQuery, state: FSMContext, temperature: Temper
             await message.answer(
                 "Сравнение температур\n\nОдин запрос, одна модель, четыре температуры "
                 "по три повтора. Лабораторный запрос использует режим «Учёба», "
-                "свой запрос — «Диалог». Каждый запуск требует отдельного подтверждения. "
+                "художественный и свой запросы — «Диалог». "
+                "Каждый запуск требует отдельного подтверждения. "
                 "Тест помогает сравнить ответы, но не доказывает, что высокая температура "
                 "улучшает качество.",
                 reply_markup=keyboard(
                     [
                         [("Запрос для лабораторной", "temp:preset")],
+                        [("Искусство: концепция картины", "temp:art")],
                         [("Свой запрос", "temp:custom")],
                         [("Последний тест", "temp:last")],
                     ]
@@ -106,6 +109,9 @@ async def action(callback: CallbackQuery, state: FSMContext, temperature: Temper
             )
         elif command == "preset" and len(parts) == 2:
             run_id = await temperature.prepare(actor, LAB_PROMPT, "study")
+            await show_run(message, actor, temperature, run_id)
+        elif command == "art" and len(parts) == 2:
+            run_id = await temperature.prepare(actor, ART_PROMPT, "chat")
             await show_run(message, actor, temperature, run_id)
         elif command == "custom" and len(parts) == 2:
             await state.set_state(TemperatureInput.prompt)
