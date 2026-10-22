@@ -25,6 +25,8 @@ class MemoryPool:
 
     async def execute(self, query, *args):
         self.calls.append((query, args))
+        if query == "DELETE FROM temperature_experiments WHERE expires_at < now()":
+            return
         if query.startswith("DELETE FROM messages WHERE created_at"):
             cutoff = datetime.now(UTC) - timedelta(days=args[0])
             self.messages = [row for row in self.messages if row["created_at"] >= cutoff]

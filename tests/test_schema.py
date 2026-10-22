@@ -11,6 +11,7 @@ from app.schema import (
     NO_LIMITS_DDL,
     POLICY_DDL,
     SCHEMA_VERSION,
+    TEMPERATURE_DDL,
     migrate,
 )
 
@@ -103,4 +104,14 @@ async def test_general_database_clears_old_reservations_without_deleting_statist
     assert connection.execute.call_args_list[3].args == (
         "INSERT INTO schema_migrations (version) VALUES ($1)",
         7,
+    )
+
+
+async def test_existing_database_adds_experiment_storage_without_rewriting_dialogues():
+    pool, connection, _ = pool_with_version(7)
+    await migrate(pool)
+    assert connection.execute.call_args_list[2].args == (TEMPERATURE_DDL,)
+    assert connection.execute.call_args_list[3].args == (
+        "INSERT INTO schema_migrations (version) VALUES ($1)",
+        8,
     )

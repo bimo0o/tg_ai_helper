@@ -15,6 +15,7 @@ from app.handlers.commands import create_router as commands_router
 from app.handlers.interface import create_router as interface_router
 from app.handlers.messages import create_router as messages_router
 from app.handlers.music import create_router as music_router
+from app.handlers.temperature import create_router as temperature_router
 from app.health import HealthState, start_health_server
 from app.llm import LLMClient
 from app.logging_setup import configure_logging
@@ -24,6 +25,7 @@ from app.repository import Repository
 from app.retention import maintenance
 from app.schema import migrate
 from app.telegram import create_bot
+from app.temperature import TemperatureRepository, TemperatureService
 
 logger = logging.getLogger("app")
 
@@ -77,6 +79,10 @@ async def run(settings: Settings) -> None:
             settings=settings,
         )
         dispatcher = Dispatcher()
+        temperature = TemperatureService(
+            TemperatureRepository(state.pool), operations, assistant.llm, settings
+        )
+        dispatcher.include_router(temperature_router())
         dispatcher.include_router(admin_router())
         dispatcher.include_router(interface_router())
         dispatcher.include_router(music_router())
@@ -93,6 +99,7 @@ async def run(settings: Settings) -> None:
                 operations=operations,
                 admin=admin,
                 profiles=profiles,
+                temperature=temperature,
                 allowed_updates=dispatcher.resolve_used_update_types(),
                 close_bot_session=False,
             )

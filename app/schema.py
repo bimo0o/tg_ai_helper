@@ -2,7 +2,7 @@
 
 import asyncpg
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 DDL = """
 CREATE TABLE IF NOT EXISTS user_settings (
     chat_id BIGINT NOT NULL,
@@ -86,6 +86,22 @@ ALTER TABLE messages ADD CONSTRAINT messages_mode_check
 NO_LIMITS_DDL = """
 UPDATE request_events SET reserved_usd=0 WHERE reserved_usd <> 0;
 """
+TEMPERATURE_DDL = """
+CREATE TABLE temperature_experiments (
+    id UUID PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + interval '30 days',
+    status TEXT NOT NULL DEFAULT 'draft'
+        CHECK (status IN ('draft', 'running', 'completed', 'cancelled', 'interrupted')),
+    cancel_requested BOOLEAN NOT NULL DEFAULT FALSE,
+    lease_until TIMESTAMPTZ,
+    data JSONB NOT NULL CHECK (jsonb_typeof(data) = 'object')
+);
+CREATE UNIQUE INDEX temperature_one_running ON temperature_experiments (user_id)
+    WHERE status='running';
+CREATE INDEX temperature_owner_created ON temperature_experiments (user_id, created_at DESC);
+"""
 MIGRATIONS = {
     1: DDL,
     2: ADMIN_DDL,
@@ -94,6 +110,7 @@ MIGRATIONS = {
     5: FLASH_DDL,
     6: GENERAL_MODES_DDL,
     7: NO_LIMITS_DDL,
+    8: TEMPERATURE_DDL,
 }
 
 

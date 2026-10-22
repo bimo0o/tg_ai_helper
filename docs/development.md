@@ -17,6 +17,7 @@ app/
   operations.py      владелец, общая модель и независимая статистика запросов
   admin.py           формирование статистики для владельца
   admin_setup.py     доверенное назначение владельца в БД
+  temperature.py     изолированные тесты температур, хранение и экспорт результатов
   billing.py         чтение расходов и баланса OpenRouter
   music_profile.py   ограниченный профиль музыканта и срок неиспользования
   retention.py       физическая очистка просроченных данных каждый час
@@ -30,6 +31,7 @@ app/
   healthcheck.py     команда проверки состояния
   logging_setup.py   логи со скрытием секретов
   handlers/interface.py кнопки, настройки, ввод профиля и подтверждения
+  handlers/temperature.py подготовка и подтверждение теста температур владельцем
   handlers/commands.py  /start, режимы, /settings, /reset
   handlers/admin.py     /admin, периоды, страницы и выбор Qwen/DeepSeek
   handlers/music.py     /profile и явный /search

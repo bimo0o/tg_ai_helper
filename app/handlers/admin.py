@@ -30,6 +30,7 @@ def keyboard(view: AdminView) -> InlineKeyboardMarkup:
     if navigation:
         rows.append(navigation)
     rows.append([button("Обновить", f"adm:view:{view.period}:{view.offset}")])
+    rows.append([button("Тест температур", "temp:open")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
