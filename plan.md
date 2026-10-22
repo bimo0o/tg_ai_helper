@@ -12,7 +12,7 @@
 - [x] Add bounded native tool-calling loop, `/tools`, `/why`, safe audit and degraded MCP behavior.
 - [x] Prepare authored supplementary 12-case dataset and safe evaluation runner. Original will not be supplied.
 - [ ] User runs paid authored routing experiment; do not present it as the official benchmark.
-- [ ] Complete regression/CI, documentation, independent MCP inspection instructions and deployment.
+- [x] Complete regression/CI, documentation, independent MCP inspection instructions and deployment.
 - [ ] User verifies live delivery and routing experiment; creates submission tag after acceptance.
 
 Editing and recurrence are deferred. Delivery is an authorized product extension beyond lab 2.
