@@ -6,6 +6,7 @@ from aiogram import Dispatcher
 from aiohttp import ClientSession
 
 from app.admin import AdminService
+from app.agent import Agent
 from app.assistant import Assistant
 from app.billing import BillingClient
 from app.config import ConfigError, Settings
@@ -16,13 +17,17 @@ from app.handlers.interface import create_router as interface_router
 from app.handlers.messages import create_router as messages_router
 from app.handlers.music import create_router as music_router
 from app.handlers.personal_profile import create_router as personal_profile_router
+from app.handlers.reminders import create_router as reminders_router
 from app.handlers.temperature import create_router as temperature_router
 from app.health import HealthState, start_health_server
 from app.llm import LLMClient
 from app.logging_setup import configure_logging
+from app.mcp.bootstrap import connect_tools
 from app.music_profile import MusicProfiles
 from app.operations import OperationsRepository
 from app.personal_profile import PersonalProfiles
+from app.reminder_delivery import delivery_worker
+from app.reminders import Reminders
 from app.repository import Repository
 from app.retention import maintenance
 from app.schema import migrate
@@ -39,6 +44,8 @@ async def run(settings: Settings) -> None:
     runner = None
     llm_session = None
     maintenance_task = None
+    delivery_task = None
+    tools = None
     try:
         state.pool = await create_pool(settings)
         logger.info("PostgreSQL подключён: SELECT 1 выполнен.")
@@ -53,6 +60,9 @@ async def run(settings: Settings) -> None:
             )
         logger.info("Telegram доступен. Бот @%s запускает polling.", me.username)
         await migrate(state.pool)
+        reminders = Reminders(state.pool)
+        tools = await connect_tools(settings)
+        delivery_task = asyncio.create_task(delivery_worker(reminders, bot))
         maintenance_task = asyncio.create_task(maintenance(state.pool, settings))
         llm_session = ClientSession()
         repository = Repository(state.pool, retention_days=settings.history_retention_days)
@@ -81,6 +91,7 @@ async def run(settings: Settings) -> None:
             operations,
             profiles,
             personal_profiles,
+            Agent(None, tools, reminders),
         )
         admin = AdminService(
             operations,
@@ -99,6 +110,7 @@ async def run(settings: Settings) -> None:
             TemperatureRepository(state.pool), operations, assistant.llm, settings
         )
         dispatcher.include_router(temperature_router())
+        dispatcher.include_router(reminders_router())
         dispatcher.include_router(personal_profile_router())
         dispatcher.include_router(admin_router())
         dispatcher.include_router(interface_router())
@@ -118,6 +130,8 @@ async def run(settings: Settings) -> None:
                 profiles=profiles,
                 personal_profiles=personal_profiles,
                 temperature=temperature,
+                reminders=reminders,
+                tools=tools,
                 allowed_updates=dispatcher.resolve_used_update_types(),
                 close_bot_session=False,
             )
@@ -132,6 +146,14 @@ async def run(settings: Settings) -> None:
         if maintenance_task:
             maintenance_task.cancel()
             await asyncio.gather(maintenance_task, return_exceptions=True)
+        if delivery_task:
+            delivery_task.cancel()
+            await asyncio.gather(delivery_task, return_exceptions=True)
+        if tools:
+            try:
+                await tools.__aexit__(None, None, None)
+            except Exception:
+                logger.warning("MCP shutdown failed; no configuration values logged")
         if runner:
             await runner.cleanup()
         if llm_session:

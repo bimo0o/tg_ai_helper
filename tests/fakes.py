@@ -47,6 +47,7 @@ class MemoryPool:
                 "DELETE FROM reminders WHERE finished_at",
                 "DELETE FROM reminder_actions a WHERE created_at",
                 "DELETE FROM tool_audit WHERE created_at",
+                "DELETE FROM agent_decisions WHERE created_at",
             )
         ):
             # This lab-1 fake has no reminder state; real retention is tested on PostgreSQL.

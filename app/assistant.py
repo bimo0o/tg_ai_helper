@@ -3,6 +3,7 @@ import time
 from dataclasses import dataclass, field
 from decimal import Decimal
 
+from app.agent import Agent
 from app.config import Settings
 from app.llm import Generation, LLMClient
 from app.music_profile import MusicProfiles
@@ -41,6 +42,7 @@ class Reply:
     ok: bool = False
     usage: dict[str, int] = field(default_factory=dict)
     error_kind: str | None = None
+    confirmation: dict | None = None
 
 
 class Assistant:
@@ -52,6 +54,7 @@ class Assistant:
         operations: OperationsRepository | None = None,
         profiles: MusicProfiles | None = None,
         personal_profiles=None,
+        agent=None,
     ):
         self.repository = repository
         self.llm = llm
@@ -59,8 +62,11 @@ class Assistant:
         self.operations = operations
         self.profiles = profiles
         self.personal_profiles = personal_profiles
+        self.agent = agent
 
-    async def respond(self, owner: Owner, text: str, *, use_web: bool = False) -> Reply:
+    async def respond(
+        self, owner: Owner, text: str, *, use_web: bool = False, source_key=None
+    ) -> Reply:
         if not text.strip():
             return Reply(EMPTY_MESSAGE, error_kind="input")
         if len(text) > self.settings.history_max_chars:
@@ -75,6 +81,7 @@ class Assistant:
         result = Generation(False, error_kind="service")
         reply = Reply(ERROR_MESSAGE, error_kind="service")
         api_started = False
+        agent_outcome = None
         try:
             profile = {}
             personal = ""
@@ -134,15 +141,37 @@ class Assistant:
                 ]
                 await repository.add_message(owner, "user", text, mode)
                 api_started = True
-                result = await self.llm.generate(
-                    messages,
-                    model,
-                    user.temperature,
-                    web=search_enabled,
-                    max_output_tokens=self.settings.max_output_tokens,
-                )
+                if (
+                    self.agent is not None
+                    and mode in {"chat", "study", "music"}
+                    and not search_enabled
+                ):
+                    agent = Agent(
+                        self.llm, self.agent.tools, self.agent.reminders.bind(repository.connection)
+                    )
+                    agent_outcome = await agent.run(
+                        messages,
+                        model,
+                        user.temperature,
+                        self.settings.max_output_tokens,
+                        owner,
+                        source_key,
+                        context_limit=self.settings.history_max_chars,
+                    )
+                    result = agent_outcome.generation
+                else:
+                    result = await self.llm.generate(
+                        messages,
+                        model,
+                        user.temperature,
+                        web=search_enabled,
+                        max_output_tokens=self.settings.max_output_tokens,
+                    )
                 if not result.ok:
-                    reply = Reply(generation_error(result), error_kind=result.error_kind)
+                    reply = Reply(
+                        result.text if agent_outcome and result.text else generation_error(result),
+                        error_kind=result.error_kind,
+                    )
                     return reply
                 answer = result.text
                 if result.truncated:
@@ -151,7 +180,12 @@ class Assistant:
                 if sources:
                     answer += "\n\nИсточники:\n" + "\n".join(sources)
                 await repository.add_message(owner, "assistant", answer, mode)
-                reply = Reply(answer, ok=True, usage=result.usage)
+                reply = Reply(
+                    answer,
+                    ok=True,
+                    usage=result.usage,
+                    confirmation=agent_outcome.proposal if agent_outcome else None,
+                )
         except DialogueBusy:
             reply = Reply(BUSY_MESSAGE, error_kind="busy")
         except Exception:
@@ -160,15 +194,34 @@ class Assistant:
         finally:
             if event is not None:
                 try:
-                    await self.operations.finish_request(
-                        event,
-                        mode,
-                        reply.ok,
-                        int((time.monotonic() - started) * 1000),
-                        result.usage,
-                        result.cost_usd if api_started else Decimal("0"),
-                        None if reply.ok else reply.error_kind or result.error_kind or "service",
-                    )
+                    if agent_outcome and agent_outcome.rounds:
+                        for index, (step, duration) in enumerate(agent_outcome.rounds):
+                            step_event = (
+                                event
+                                if index == 0
+                                else await self.operations.start_request(owner, model)
+                            )
+                            await self.operations.finish_request(
+                                step_event,
+                                mode,
+                                step.ok,
+                                duration,
+                                step.usage,
+                                step.cost_usd,
+                                None if step.ok else step.error_kind or "service",
+                            )
+                    else:
+                        await self.operations.finish_request(
+                            event,
+                            mode,
+                            reply.ok,
+                            int((time.monotonic() - started) * 1000),
+                            result.usage,
+                            result.cost_usd if api_started else Decimal("0"),
+                            None
+                            if reply.ok
+                            else reply.error_kind or result.error_kind or "service",
+                        )
                 except Exception:
                     logger.warning("Request accounting incomplete; no request content logged.")
         return reply

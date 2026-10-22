@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -15,6 +16,23 @@ TEMPERATURES = (0.0, 0.3, 0.7, 1.0)
 
 
 @dataclass(frozen=True)
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict
+
+    def wire(self):
+        return {
+            "id": self.id,
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "arguments": json.dumps(self.arguments, ensure_ascii=False),
+            },
+        }
+
+
+@dataclass(frozen=True)
 class Generation:
     ok: bool
     text: str = ""
@@ -25,9 +43,10 @@ class Generation:
     finish_reason: str | None = None
     http_status: int | None = None
     truncated: bool = False
+    tool_calls: tuple[ToolCall, ...] = ()
 
 
-def parse_response(data: object) -> Generation:
+def parse_response(data: object, *, allow_tools=False) -> Generation:
     usage = {}
     cost = None
     finish = None
@@ -51,6 +70,31 @@ def parse_response(data: object) -> Generation:
             if raw_finish in {"stop", "length", "content_filter", "tool_calls", "error"}
             else "unknown"
         )
+        if finish == "tool_calls" and allow_tools:
+            raw_calls = choice["message"]["tool_calls"]
+            if not isinstance(raw_calls, list) or not 1 <= len(raw_calls) <= 8:
+                raise ValueError
+            calls = []
+            for call in raw_calls:
+                function = call["function"]
+                identity, name, arguments = call["id"], function["name"], function["arguments"]
+                if (
+                    call.get("type") != "function"
+                    or not isinstance(identity, str)
+                    or not 1 <= len(identity) <= 128
+                    or not isinstance(name, str)
+                    or not 1 <= len(name) <= 64
+                    or not isinstance(arguments, str)
+                    or len(arguments) > 8000
+                ):
+                    raise ValueError
+                parsed = json.loads(arguments)
+                if not isinstance(parsed, dict) or any(c.id == identity for c in calls):
+                    raise ValueError
+                calls.append(ToolCall(identity, name, parsed))
+            return Generation(
+                True, usage=usage, cost_usd=cost, finish_reason=finish, tool_calls=tuple(calls)
+            )
         if finish not in {"stop", "length"}:
             return Generation(
                 False, error_kind="incomplete", usage=usage, cost_usd=cost, finish_reason=finish
@@ -115,6 +159,8 @@ class LLMClient:
         *,
         web=False,
         max_output_tokens=1500,
+        tools=None,
+        tool_choice="auto",
     ) -> Generation:
         if type(temperature) not in {float, int} or temperature not in TEMPERATURES:
             return Generation(False, error_kind="settings")
@@ -139,6 +185,9 @@ class LLMClient:
                     payload["reasoning"] = {"enabled": False}
             if web:
                 payload["plugins"] = [{"id": "web", "engine": "exa", "max_results": 3}]
+            if tools:
+                payload["tools"] = tools
+                payload["tool_choice"] = tool_choice
             async with asyncio.timeout(self.timeout):
                 async with self.session.post(
                     self.url,
@@ -149,7 +198,7 @@ class LLMClient:
                 ) as response:
                     if response.status == 200:
                         try:
-                            result = parse_response(await response.json())
+                            result = parse_response(await response.json(), allow_tools=bool(tools))
                         except (ValueError, aiohttp.ContentTypeError):
                             result = Generation(False, error_kind="invalid")
                     else:

@@ -5,6 +5,7 @@ import pytest
 from app.schema import (
     ADMIN_DDL,
     DDL,
+    DECISIONS_DDL,
     FLASH_DDL,
     GENERAL_MODES_DDL,
     MODEL_DDL,
@@ -136,4 +137,14 @@ async def test_personal_profile_database_adds_reminders_without_touching_existin
     assert connection.execute.call_args_list[3].args == (
         "INSERT INTO schema_migrations (version) VALUES ($1)",
         10,
+    )
+
+
+async def test_reminders_database_adds_safe_agent_audit_only():
+    pool, connection, _ = pool_with_version(10)
+    await migrate(pool)
+    assert connection.execute.call_args_list[2].args == (DECISIONS_DDL,)
+    assert connection.execute.call_args_list[3].args == (
+        "INSERT INTO schema_migrations (version) VALUES ($1)",
+        11,
     )

@@ -46,6 +46,8 @@ services:
       HISTORY_RETENTION_DAYS: ${HISTORY_RETENTION_DAYS:-30}
       STATISTICS_RETENTION_DAYS: ${STATISTICS_RETENTION_DAYS:-90}
       MUSIC_PROFILE_RETENTION_DAYS: ${MUSIC_PROFILE_RETENTION_DAYS:-180}
+      SCHEDULE_PATH: ${SCHEDULE_PATH:-app/data/schedule.example.json}
+      SCHEDULE_TIMEZONE: ${SCHEDULE_TIMEZONE:-UTC}
     depends_on:
       db:
         condition: service_healthy

@@ -26,11 +26,14 @@ async def test_startup_wires_commands_before_text_and_closes_single_pool_and_ses
     monkeypatch.setattr(application, "Dispatcher", Mock(return_value=dispatcher))
     monkeypatch.setattr(application, "migrate", migration)
     monkeypatch.setattr(application, "maintenance", maintenance)
+    monkeypatch.setattr(application, "connect_tools", AsyncMock(return_value=None))
+    monkeypatch.setattr(application, "delivery_worker", AsyncMock())
     monkeypatch.setattr(application, "start_health_server", AsyncMock(return_value=runner))
     settings = Settings(bot_token="unused", postgres_password="unused")
     await application.run(settings)
     assert [call.args[0].name for call in dispatcher.include_router.call_args_list] == [
         "temperature",
+        "reminders",
         "personal_profile",
         "admin",
         "interface",

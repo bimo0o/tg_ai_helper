@@ -29,6 +29,13 @@ def test_management_key_is_optional_and_hidden_in_repr():
     assert configured().openrouter_management_key == ""
 
 
+def test_schedule_configuration_rejects_unknown_timezone_and_empty_path():
+    with pytest.raises(ConfigError, match="SCHEDULE_TIMEZONE"):
+        replace(configured(), schedule_timezone="Unknown/zone").validate_llm()
+    with pytest.raises(ConfigError, match="SCHEDULE_PATH"):
+        replace(configured(), schedule_path=" ").validate_llm()
+
+
 @pytest.mark.parametrize("name", ["llm_base_url", "llm_api_key", "llm_model"])
 def test_required_llm_setting(name):
     with pytest.raises(ConfigError, match=name.upper()):

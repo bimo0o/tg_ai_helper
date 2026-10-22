@@ -45,7 +45,7 @@ async def dispatch(*, kind="text", chat_type="private"):
 
 async def test_long_private_text_reaches_assistant_and_does_not_log_as_unhandled(caplog):
     assistant, methods, _, text = await dispatch()
-    assistant.respond.assert_awaited_once_with((10, 10), text)
+    assistant.respond.assert_awaited_once_with((10, 10), text, source_key="telegram:1")
     assert any(
         isinstance(method, SendMessage) and method.text == "fixture answer" for method in methods
     )

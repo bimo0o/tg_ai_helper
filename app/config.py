@@ -9,6 +9,8 @@ from urllib.parse import urlsplit
 from aiogram.utils.token import TokenValidationError, validate_token
 from dotenv import dotenv_values
 
+from app.reminder_time import ReminderInputError, timezone
+
 
 class ConfigError(ValueError):
     """Ошибка настройки без секретных значений в сообщении."""
@@ -37,8 +39,16 @@ class Settings:
     history_retention_days: int = 30
     statistics_retention_days: int = 90
     music_profile_retention_days: int = 180
+    schedule_path: str = "app/data/schedule.example.json"
+    schedule_timezone: str = "UTC"
 
     def validate_llm(self) -> None:
+        try:
+            timezone(self.schedule_timezone)
+        except ReminderInputError:
+            raise ConfigError("SCHEDULE_TIMEZONE: нужен часовой пояс IANA.") from None
+        if not self.schedule_path.strip() or len(self.schedule_path) > 4096:
+            raise ConfigError("SCHEDULE_PATH: укажите путь к JSON расписания.")
         for name in ("llm_base_url", "llm_api_key", "llm_model"):
             if not getattr(self, name).strip():
                 raise ConfigError(f"{name.upper()}: обязательная настройка не задана.")
@@ -154,4 +164,6 @@ class Settings:
             history_retention_days=integer("HISTORY_RETENTION_DAYS", "30"),
             statistics_retention_days=integer("STATISTICS_RETENTION_DAYS", "90"),
             music_profile_retention_days=integer("MUSIC_PROFILE_RETENTION_DAYS", "180"),
+            schedule_path=value("SCHEDULE_PATH", "app/data/schedule.example.json"),
+            schedule_timezone=value("SCHEDULE_TIMEZONE", "UTC"),
         )

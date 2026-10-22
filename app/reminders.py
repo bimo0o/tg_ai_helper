@@ -1,6 +1,8 @@
 """Durable reminder state machine. All owner checks happen in SQL, not in the model."""
 
+import json
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -14,13 +16,30 @@ class ReminderUnavailable(ValueError):
 
 
 class Reminders:
-    def __init__(self, pool, *, clock: Callable[[], datetime] | None = None):
+    def __init__(self, pool, *, clock: Callable[[], datetime] | None = None, connection=None):
         self.pool = pool
+        self.connection = connection
         self.clock = clock or (lambda: datetime.now(UTC))
+
+    @property
+    def db(self):
+        return self.connection if self.connection is not None else self.pool
+
+    def bind(self, connection):
+        return Reminders(self.pool, clock=self.clock, connection=connection)
+
+    @asynccontextmanager
+    async def transaction(self):
+        if self.connection is not None:
+            async with self.connection.transaction():
+                yield self.connection
+        else:
+            async with self.pool.acquire() as connection, connection.transaction():
+                yield connection
 
     async def set_timezone(self, user_id: int, name: str) -> None:
         timezone(name)
-        await self.pool.execute(
+        await self.db.execute(
             "INSERT INTO reminder_timezones (user_id, timezone) VALUES ($1, $2) "
             "ON CONFLICT (user_id) DO UPDATE SET timezone=EXCLUDED.timezone",
             user_id,
@@ -28,7 +47,7 @@ class Reminders:
         )
 
     async def get_timezone(self, user_id: int) -> str | None:
-        return await self.pool.fetchval(
+        return await self.db.fetchval(
             "SELECT timezone FROM reminder_timezones WHERE user_id=$1", user_id
         )
 
@@ -41,7 +60,7 @@ class Reminders:
             raise ValueError("Invalid source identity")
         now = self.clock()
         instant = reminder_instant(remind_at, zone, now)
-        async with self.pool.acquire() as connection, connection.transaction():
+        async with self.transaction() as connection:
             await connection.execute(
                 "INSERT INTO reminder_actions "
                 "(id, chat_id, user_id, source_key, text, remind_at, timezone, "
@@ -67,7 +86,7 @@ class Reminders:
 
     async def confirm(self, owner: Owner, action_id: UUID) -> dict:
         """Persist user approval separately; MCP execution can safely retry it later."""
-        async with self.pool.acquire() as connection, connection.transaction():
+        async with self.transaction() as connection:
             row = await connection.fetchrow(
                 "SELECT * FROM reminder_actions WHERE id=$1 AND chat_id=$2 AND user_id=$3 "
                 "FOR UPDATE",
@@ -93,7 +112,7 @@ class Reminders:
         self, owner: Owner, action_id: UUID, text: str, remind_at: str
     ) -> tuple[dict, bool]:
         """Called by trusted MCP adapter after signature validation; DB is the authority."""
-        async with self.pool.acquire() as connection, connection.transaction():
+        async with self.transaction() as connection:
             action = await connection.fetchrow(
                 "SELECT * FROM reminder_actions WHERE id=$1 AND chat_id=$2 AND user_id=$3 "
                 "FOR UPDATE",
@@ -134,7 +153,7 @@ class Reminders:
             return dict(row), True
 
     async def dismiss(self, owner: Owner, action_id: UUID) -> bool:
-        row = await self.pool.fetchrow(
+        row = await self.db.fetchrow(
             "UPDATE reminder_actions SET status='cancelled' "
             "WHERE id=$1 AND chat_id=$2 AND user_id=$3 AND status='pending' RETURNING id",
             action_id,
@@ -143,7 +162,7 @@ class Reminders:
         return row is not None
 
     async def list(self, owner: Owner) -> list[dict]:
-        rows = await self.pool.fetch(
+        rows = await self.db.fetch(
             "SELECT * FROM reminders WHERE chat_id=$1 AND user_id=$2 "
             "AND status IN ('scheduled','sending','unconfirmed') ORDER BY remind_at, id LIMIT 50",
             *owner,
@@ -151,7 +170,7 @@ class Reminders:
         return [dict(row) for row in rows]
 
     async def cancel(self, owner: Owner, reminder_id: UUID) -> bool:
-        row = await self.pool.fetchrow(
+        row = await self.db.fetchrow(
             "UPDATE reminders SET status='cancelled', finished_at=$4 "
             "WHERE id=$1 AND chat_id=$2 AND user_id=$3 AND status='scheduled' RETURNING id",
             reminder_id,
@@ -163,7 +182,7 @@ class Reminders:
     async def claim(self) -> dict | None:
         """One atomic claim across workers; an expired send lease is never retried blindly."""
         now = self.clock()
-        async with self.pool.acquire() as connection, connection.transaction():
+        async with self.transaction() as connection:
             await connection.execute(
                 "UPDATE reminders SET status='unconfirmed', claim_token=NULL, lease_until=NULL, "
                 "finished_at=$1 WHERE status='sending' AND lease_until <= $1",
@@ -189,7 +208,7 @@ class Reminders:
     async def finish(self, reminder_id: UUID, claim_token: UUID, status: str) -> bool:
         if status not in {"sent", "blocked", "unconfirmed"}:
             raise ValueError("Invalid completion status")
-        row = await self.pool.fetchrow(
+        row = await self.db.fetchrow(
             "UPDATE reminders SET status=$3, claim_token=NULL, lease_until=NULL, finished_at=$4 "
             "WHERE id=$1 AND claim_token=$2 AND status='sending' RETURNING id",
             reminder_id,
@@ -198,3 +217,51 @@ class Reminders:
             self.clock(),
         )
         return row is not None
+
+    async def audit(self, owner: Owner, tool: str, outcome: str, duration_ms: int):
+        await self.db.execute(
+            "INSERT INTO tool_audit (chat_id,user_id,tool,outcome,duration_ms) "
+            "VALUES ($1,$2,$3,$4,$5)",
+            *owner,
+            tool,
+            outcome,
+            duration_ms,
+        )
+
+    async def last_audit(self, owner: Owner):
+        row = await self.db.fetchrow(
+            "SELECT tool,outcome,duration_ms,created_at FROM tool_audit "
+            "WHERE chat_id=$1 AND user_id=$2 AND created_at >= now()-interval '90 days' "
+            "ORDER BY created_at DESC,id DESC LIMIT 1",
+            *owner,
+        )
+        return dict(row) if row else None
+
+    async def decision(self, owner, source_key, action, tool, arguments, status):
+        # Never store reminder text, owner-supplied extras or free-form model reasoning.
+        safe = {
+            key: value[:100]
+            for key, value in arguments.items()
+            if key in {"city", "date", "remind_at"} and isinstance(value, str)
+        }
+        await self.db.execute(
+            "INSERT INTO agent_decisions (chat_id,user_id,source_key,action,tool,arguments,status) "
+            "VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT (chat_id,user_id,source_key) "
+            "DO UPDATE SET action=EXCLUDED.action,tool=EXCLUDED.tool,arguments=EXCLUDED.arguments,"
+            "status=EXCLUDED.status",
+            *owner,
+            source_key,
+            action,
+            tool,
+            json.dumps(safe, ensure_ascii=False),
+            status,
+        )
+
+    async def last_decision(self, owner):
+        row = await self.db.fetchrow(
+            "SELECT action,tool,arguments,status,created_at FROM agent_decisions "
+            "WHERE chat_id=$1 AND user_id=$2 AND created_at >= now()-interval '90 days' "
+            "ORDER BY created_at DESC,id DESC LIMIT 1",
+            *owner,
+        )
+        return dict(row) if row else None

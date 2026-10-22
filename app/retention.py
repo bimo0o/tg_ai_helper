@@ -41,6 +41,9 @@ async def purge(pool, settings: Settings) -> None:
         await connection.execute(
             "DELETE FROM tool_audit WHERE created_at < now()-interval '90 days'"
         )
+        await connection.execute(
+            "DELETE FROM agent_decisions WHERE created_at < now()-interval '90 days'"
+        )
 
 
 async def maintenance(pool, settings: Settings) -> None:

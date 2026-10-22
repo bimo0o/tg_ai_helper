@@ -2,7 +2,7 @@
 
 import asyncpg
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 DDL = """
 CREATE TABLE IF NOT EXISTS user_settings (
     chat_id BIGINT NOT NULL,
@@ -159,6 +159,22 @@ CREATE TABLE tool_audit (
 );
 CREATE INDEX tool_audit_owner ON tool_audit (chat_id, user_id, created_at DESC);
 """
+DECISIONS_DDL = """
+CREATE TABLE agent_decisions (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    chat_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    source_key TEXT NOT NULL CHECK (length(source_key) BETWEEN 1 AND 100),
+    action TEXT NOT NULL CHECK (action IN ('answer','clarification','tool','limit','error')),
+    tool TEXT CHECK (tool IN ('get_weather','get_schedule','add_reminder')),
+    arguments JSONB NOT NULL CHECK (jsonb_typeof(arguments)='object'),
+    status TEXT NOT NULL
+        CHECK (status IN ('not_called','awaiting_confirmation','success','error','limit')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (chat_id,user_id,source_key)
+);
+CREATE INDEX agent_decisions_owner ON agent_decisions (chat_id,user_id,created_at DESC);
+"""
 MIGRATIONS = {
     1: DDL,
     2: ADMIN_DDL,
@@ -170,6 +186,7 @@ MIGRATIONS = {
     8: TEMPERATURE_DDL,
     9: PERSONAL_PROFILE_DDL,
     10: REMINDERS_DDL,
+    11: DECISIONS_DDL,
 }
 
 

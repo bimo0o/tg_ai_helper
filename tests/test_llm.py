@@ -128,6 +128,24 @@ async def test_cancellation_propagates():
         await llm.generate([], "model", 0.3)
 
 
+async def test_native_tools_are_opt_in_and_calls_stay_structured():
+    data = response(None, finish="tool_calls")
+    data["choices"][0]["message"]["tool_calls"] = [
+        {
+            "id": "call_test",
+            "type": "function",
+            "function": {"name": "get_weather", "arguments": '{"city":"Test"}'},
+        }
+    ]
+    assert not parse_response(data).ok
+    llm, session = client(data)
+    definitions = [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]
+    result = await llm.generate([], "model", 0.3, tools=definitions)
+    assert result.ok and result.tool_calls[0].arguments == {"city": "Test"}
+    assert session.post.call_args.kwargs["json"]["tools"] == definitions
+    assert "plugins" not in session.post.call_args.kwargs["json"]
+
+
 @pytest.mark.parametrize("finish", ["stop", "length"])
 def test_actual_provider_cost_is_preserved_even_for_incomplete_answer(finish):
     data = response(finish=finish)
